@@ -1,0 +1,28 @@
+# Project docs (kept local)
+SPEC.md
+CLAUDE.md
+
+# Environment variables (never commit keys)
+.env*
+!.env.example
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+/build
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel
+*.tsbuildinfo
+next-env.d.ts
