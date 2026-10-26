@@ -23,26 +23,47 @@ export interface ParticipantRow {
   joined_at: string;
 }
 
-export type JoinCheck =
+export type StateCheck =
   | { ok: true }
   | { ok: false; status: 409 | 410; error: string };
 
-/** Pure check so the state rules can be unit tested without a database. */
-export function checkCanJoin(
-  session: Pick<SessionRow, "status" | "expires_at">,
-  now: Date = new Date(),
-): JoinCheck {
+type SessionState = Pick<SessionRow, "status" | "expires_at">;
+
+/** Pure checks so the state rules can be unit tested without a database. */
+function checkCollecting(
+  session: SessionState,
+  notCollectingError: string,
+  now: Date,
+): StateCheck {
   if (isExpired(session, now)) {
     return { ok: false, status: 410, error: "This session has expired" };
   }
   if (session.status !== "collecting") {
-    return {
-      ok: false,
-      status: 409,
-      error: "This session is no longer accepting new people",
-    };
+    return { ok: false, status: 409, error: notCollectingError };
   }
   return { ok: true };
+}
+
+export function checkCanJoin(
+  session: SessionState,
+  now: Date = new Date(),
+): StateCheck {
+  return checkCollecting(
+    session,
+    "This session is no longer accepting new people",
+    now,
+  );
+}
+
+export function checkCanSubmitPreferences(
+  session: SessionState,
+  now: Date = new Date(),
+): StateCheck {
+  return checkCollecting(
+    session,
+    "Preferences can no longer be changed for this session",
+    now,
+  );
 }
 
 export function isExpired(

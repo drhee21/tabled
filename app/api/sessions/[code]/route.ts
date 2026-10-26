@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jsonError, serverError } from "@/lib/http";
+import { getOwnPreferences, listSubmittedParticipantIds } from "@/lib/preferences";
+import { hostRealtimeTopic } from "@/lib/realtime";
 import {
   findParticipantByToken,
   findSessionByCode,
@@ -25,12 +27,22 @@ export async function GET(
     if (!session) return jsonError(404, "Session not found");
     if (isExpired(session)) return jsonError(410, "This session has expired");
 
+    const host = isHost(session, request.cookies.get(hostCookieName(code))?.value);
     const [participants, me] = await Promise.all([
       listParticipants(session.id),
       findParticipantByToken(
         session.id,
         request.cookies.get(participantCookieName(code))?.value,
       ),
+    ]);
+
+    // Who has submitted goes to the host only. A participant gets their own
+    // answers back. Nobody else's preference contents are ever selected.
+    const [submittedIds, ownPreferences] = await Promise.all([
+      host
+        ? listSubmittedParticipantIds(participants.map((p) => p.id))
+        : Promise.resolve(null),
+      me ? getOwnPreferences(me.id) : Promise.resolve(null),
     ]);
 
     // Coordinates are deliberately left out of the response.
@@ -40,10 +52,14 @@ export async function GET(
       radius_m: session.radius_m,
       meal_time: session.meal_time,
       expires_at: session.expires_at,
-      participants,
+      participants: participants.map((p) =>
+        submittedIds ? { ...p, submitted: submittedIds.has(p.id) } : p,
+      ),
       viewer: {
-        is_host: isHost(session, request.cookies.get(hostCookieName(code))?.value),
+        is_host: host,
         participant_id: me?.id ?? null,
+        preferences: ownPreferences,
+        realtime_topic: host ? hostRealtimeTopic(session.host_token_hash) : null,
       },
     });
   } catch (err) {
