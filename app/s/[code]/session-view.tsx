@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { ApiErrorResponse, SessionStateResponse } from "@/lib/api-types";
+import { createRealtimeClient } from "@/lib/realtime-client";
+import { PreferencesForm } from "./preferences-form";
 
 type LoadState =
   | { kind: "loading" }
@@ -35,6 +37,47 @@ export function SessionView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Live submission status. Only the host is given a topic to listen on, and
+  // events carry a participant id and nothing else.
+  const topic = state.kind === "ready" ? state.session.viewer.realtime_topic : null;
+  useEffect(() => {
+    if (!topic) return;
+    const client = createRealtimeClient();
+    if (!client) return;
+
+    const channel = client
+      .channel(topic)
+      .on("broadcast", { event: "submitted" }, ({ payload }) => {
+        const id = (payload as { participant_id?: string }).participant_id;
+        if (!id) return;
+        setState((prev) => {
+          if (prev.kind !== "ready") return prev;
+          const known = prev.session.participants.some((p) => p.id === id);
+          if (!known) {
+            void load();
+            return prev;
+          }
+          return {
+            kind: "ready",
+            session: {
+              ...prev.session,
+              participants: prev.session.participants.map((p) =>
+                p.id === id ? { ...p, submitted: true } : p,
+              ),
+            },
+          };
+        });
+      })
+      // Catch up on anything missed before the subscription was live.
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void load();
+      });
+
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [topic, load]);
 
   if (state.kind === "loading") {
     return <p className="text-neutral-500">Loading session…</p>;
@@ -75,6 +118,17 @@ export function SessionView() {
         <p className="text-neutral-600">This session is no longer accepting new people.</p>
       )}
 
+      {joined && session.status === "collecting" && (
+        <PreferencesForm
+          code={session.join_code}
+          initial={session.viewer.preferences}
+          onSaved={load}
+        />
+      )}
+      {joined && session.status !== "collecting" && (
+        <p className="text-neutral-600">Preferences are locked for this session.</p>
+      )}
+
       <section>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">
@@ -100,6 +154,17 @@ export function SessionView() {
                 {p.display_name}
                 {p.id === session.viewer.participant_id && (
                   <span className="ml-2 text-sm text-neutral-500">(you)</span>
+                )}
+                {p.submitted !== undefined && (
+                  <span
+                    className={`float-right text-sm ${
+                      p.submitted
+                        ? "font-semibold text-green-700 dark:text-green-400"
+                        : "text-neutral-500"
+                    }`}
+                  >
+                    {p.submitted ? "Submitted ✓" : "Waiting…"}
+                  </span>
                 )}
               </li>
             ))}
