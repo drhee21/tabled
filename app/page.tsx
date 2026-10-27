@@ -1,13 +1,16 @@
+import { PageLayout } from "@/components/ui/PageLayout";
 import { CreateSessionForm } from "./create-session-form";
 
 export default function Home() {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 px-4 py-10">
-      <h1 className="text-3xl font-bold">Tabled</h1>
-      <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+    <PageLayout>
+      <h1 className="text-4xl font-extrabold leading-tight tracking-tight">
+        Where should we eat?
+      </h1>
+      <p className="mt-3 text-lg text-ink-soft">
         Start a session, share the link, and pick a place together.
       </p>
       <CreateSessionForm />
-    </main>
+    </PageLayout>
   );
 }

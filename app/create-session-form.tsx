@@ -2,9 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse } from "@/lib/api-types";
 
-const RADIUS_OPTIONS = [500, 1000, 1500, 3000, 5000];
+const RADIUS_OPTIONS = [
+  { value: "500", label: "0.5" },
+  { value: "1000", label: "1" },
+  { value: "1500", label: "1.5" },
+  { value: "3000", label: "3" },
+  { value: "5000", label: "5" },
+];
+
+const MEAL_OPTIONS = [
+  { value: "now", label: "Now" },
+  { value: "later", label: "Later" },
+];
 
 type MealChoice = "now" | "later";
 
@@ -88,107 +103,83 @@ export function CreateSessionForm() {
     }
   }
 
+
   const hasLocation = lat !== "" && lng !== "";
 
+  function chooseMeal(value: string) {
+    const choice = value as MealChoice;
+    setMealChoice(choice);
+    if (choice === "later" && mealTime === "") {
+      setMealTime(toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)));
+    }
+  }
+
   return (
-    <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-6">
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Location</legend>
-        <button
-          type="button"
-          onClick={useMyLocation}
-          disabled={locating}
-          className="rounded-lg border border-neutral-300 px-4 py-3 font-medium hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
-        >
-          {locating ? "Locating…" : hasLocation ? "Location set ✓ (update)" : "Use my location"}
-        </button>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            Latitude
-            <input
+    <Card className="mt-8 animate-rise">
+      <form onSubmit={onSubmit} className="flex flex-col gap-8">
+        <fieldset className="flex flex-col gap-4">
+          <legend className="mb-3 text-lg font-extrabold">Where are you?</legend>
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={useMyLocation}
+            loading={locating}
+          >
+            {locating ? "Locating…" : hasLocation ? "Location set ✓ Update" : "Use my location"}
+          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <TextInput
+              label="Latitude"
               inputMode="decimal"
               value={lat}
               onChange={(e) => setLat(e.target.value)}
-              className="rounded-lg border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Longitude
-            <input
+            <TextInput
+              label="Longitude"
               inputMode="decimal"
               value={lng}
               onChange={(e) => setLng(e.target.value)}
-              className="rounded-lg border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
             />
-          </label>
-        </div>
-      </fieldset>
+          </div>
+        </fieldset>
 
-      <label className="flex flex-col gap-2">
-        <span className="font-semibold">Search radius</span>
-        <select
-          value={radius}
-          onChange={(e) => setRadius(Number(e.target.value))}
-          className="rounded-lg border border-neutral-300 bg-transparent px-3 py-3 dark:border-neutral-700"
-        >
-          {RADIUS_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {r < 1000 ? `${r} m` : `${r / 1000} km`}
-            </option>
-          ))}
-        </select>
-      </label>
+        <SegmentedControl
+          label="How far will you go? (km)"
+          options={RADIUS_OPTIONS}
+          value={String(radius)}
+          onChange={(v) => setRadius(Number(v))}
+        />
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Meal time</legend>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="meal"
-              checked={mealChoice === "now"}
-              onChange={() => setMealChoice("now")}
-            />
-            Now
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="meal"
-              checked={mealChoice === "later"}
-              onChange={() => {
-                setMealChoice("later");
-                if (mealTime === "") {
-                  setMealTime(toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)));
-                }
-              }}
-            />
-            Later
-          </label>
-        </div>
-        {mealChoice === "later" && (
-          <input
-            type="datetime-local"
-            value={mealTime}
-            onChange={(e) => setMealTime(e.target.value)}
-            className="rounded-lg border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
+        <div className="flex flex-col gap-4">
+          <SegmentedControl
+            label="When are you eating?"
+            options={MEAL_OPTIONS}
+            value={mealChoice}
+            onChange={chooseMeal}
           />
+          {mealChoice === "later" && (
+            <TextInput
+              type="datetime-local"
+              aria-label="Meal time"
+              value={mealTime}
+              onChange={(e) => setMealTime(e.target.value)}
+            />
+          )}
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
+          >
+            {error}
+          </p>
         )}
-      </fieldset>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-lg bg-orange-600 px-4 py-3 font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
-      >
-        {submitting ? "Creating…" : "Create session"}
-      </button>
-    </form>
+        <Button type="submit" fullWidth loading={submitting}>
+          {submitting ? "Creating…" : "Create session"}
+        </Button>
+      </form>
+    </Card>
   );
 }
