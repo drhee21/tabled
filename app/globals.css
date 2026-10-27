@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Design tokens for Tabled: mostly white, light purple accents.
+ * Light purple (brand-50 to 300) is for backgrounds and accents only.
+ * Text, buttons and focus rings use the deep purples (brand-700 and up,
+ * ink) so contrast stays readable on white: brand-700 on white is about
+ * 7:1 and ink-soft on white is about 5.6:1.
+ */
+@theme {
+  --color-brand-50: #f7f4ff;
+  --color-brand-100: #efe9ff;
+  --color-brand-200: #e1d6ff;
+  --color-brand-300: #cdbbff;
+  --color-brand-400: #b095ff;
+  --color-brand-500: #9163f5;
+  --color-brand-600: #7c45e8;
+  --color-brand-700: #6a32d1;
+  --color-brand-800: #5626ab;
+  --color-brand-900: #3d1d7a;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-ink: #2b1a52;
+  --color-ink-soft: #6b6190;
+  --color-line: #e4dcf7;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-success-50: #e6f7ef;
+  --color-success-700: #0f7a55;
+  --color-danger-50: #fef3f2;
+  --color-danger-700: #b42318;
+
+  --font-sans: var(--font-nunito), ui-rounded, system-ui, sans-serif;
+
+  --radius-control: 1rem;
+  --radius-card: 1.75rem;
+
+  --spacing-gutter: 1.25rem;
+  --spacing-section: 2rem;
+
+  --shadow-soft:
+    0 1px 2px rgb(61 29 122 / 0.06), 0 8px 24px -8px rgb(61 29 122 / 0.12);
+  --shadow-lift:
+    0 2px 4px rgb(61 29 122 / 0.08), 0 14px 32px -10px rgb(61 29 122 / 0.22);
+
+  --animate-pop: pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-rise: rise 260ms ease-out both;
+  --animate-flash: flash 1400ms ease-out both;
+  --animate-draw: draw 420ms ease-out 120ms both;
+
+  @keyframes pop {
+    0% {
+      transform: scale(0.7);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes rise {
+    0% {
+      transform: translateY(8px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes flash {
+    0% {
+      background-color: var(--color-brand-200);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+  @keyframes draw {
+    0% {
+      stroke-dashoffset: 24;
+    }
+    100% {
+      stroke-dashoffset: 0;
+    }
   }
 }
 
+:root {
+  color-scheme: light;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand-700);
+  outline-offset: 2px;
+}
+
+/* Keep taps from selecting text or flashing the default highlight. */
+button,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }
