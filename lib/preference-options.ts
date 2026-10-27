@@ -41,9 +41,14 @@ export const PRICE_LEVEL_MAX = 4;
 
 export const NOTE_MAX_LENGTH = 280;
 
+const LABEL_OVERRIDES: Record<string, string> = { bbq: "BBQ" };
+
 export function optionLabel(value: string): string {
-  return value
+  return (
+    LABEL_OVERRIDES[value] ??
+    value
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+    .join(" ")
+  );
 }

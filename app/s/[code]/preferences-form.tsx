@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { SuccessCheck } from "@/components/ui/SuccessCheck";
+import { TextArea } from "@/components/ui/TextInput";
 import type { ApiErrorResponse, OwnPreferences } from "@/lib/api-types";
 import {
   CUISINE_VALUES,
@@ -9,14 +15,25 @@ import {
   optionLabel,
 } from "@/lib/preference-options";
 
-const PRICE_OPTIONS = [1, 2, 3, 4];
+// "" means no limit; the rest are price levels 1 to 4.
+const BUDGET_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "1", label: "$" },
+  { value: "2", label: "$$" },
+  { value: "3", label: "$$$" },
+  { value: "4", label: "$$$$" },
+];
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-function priceSelectValue(level: number | null): string {
+function budgetToString(level: number | null): string {
   return level === null ? "" : String(level);
+}
+
+function budgetFromString(value: string): number | null {
+  return value === "" ? null : Number(value);
 }
 
 export function PreferencesForm({
@@ -78,162 +95,136 @@ export function PreferencesForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6" onChange={edited}>
-      <div>
-        <h2 className="text-xl font-bold">
-          {resubmitting ? "Update your answers" : "Your preferences"}
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Only the host sees that you have answered. Nobody else sees what you picked.
-        </p>
-      </div>
-
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Dietary restrictions</legend>
-        <ChipGroup
-          values={DIETARY_VALUES}
-          selected={dietary}
-          onToggle={(v) => setDietary((d) => toggle(d, v))}
-        />
-        <p className="text-xs text-neutral-500">
-          Best-effort only. Check with the restaurant before you go.
-        </p>
-      </fieldset>
-
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Budget</legend>
-        <div className="grid grid-cols-2 gap-3">
-          <PriceSelect
-            label="From"
-            value={budgetMin}
-            onChange={setBudgetMin}
-          />
-          <PriceSelect label="Up to" value={budgetMax} onChange={setBudgetMax} />
+    <Card className="animate-rise">
+      <form onSubmit={onSubmit} className="flex flex-col gap-8" onChange={edited}>
+        <div>
+          <h2 className="text-2xl font-extrabold">
+            {resubmitting ? "Update your answers" : "What are you into?"}
+          </h2>
+          <p className="mt-1 text-ink-soft">
+            Only the host sees that you have answered. Nobody else sees what you picked.
+          </p>
         </div>
-      </fieldset>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Cuisines you want</legend>
-        <ChipGroup
-          values={CUISINE_VALUES}
-          selected={want}
-          onToggle={(v) => {
-            setWant((w) => toggle(w, v));
-            setAvoid((a) => a.filter((c) => c !== v));
-          }}
-        />
-      </fieldset>
+        <Section title="Dietary restrictions" hint="Best-effort only. Check with the restaurant before you go.">
+          {DIETARY_VALUES.map((v) => (
+            <Chip
+              key={v}
+              checked={dietary.includes(v)}
+              onChange={() => setDietary((d) => toggle(d, v))}
+            >
+              {optionLabel(v)}
+            </Chip>
+          ))}
+        </Section>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Cuisines you refuse</legend>
-        <ChipGroup
-          values={CUISINE_VALUES}
-          selected={avoid}
-          onToggle={(v) => {
-            setAvoid((a) => toggle(a, v));
-            setWant((w) => w.filter((c) => c !== v));
-          }}
-        />
-      </fieldset>
+        <fieldset className="flex flex-col gap-4">
+          <legend className="mb-3 text-lg font-extrabold">Budget</legend>
+          <SegmentedControl
+            label="Spend at least"
+            options={BUDGET_OPTIONS}
+            value={budgetToString(budgetMin)}
+            onChange={(v) => setBudgetMin(budgetFromString(v))}
+          />
+          <SegmentedControl
+            label="Spend at most"
+            options={BUDGET_OPTIONS}
+            value={budgetToString(budgetMax)}
+            onChange={(v) => setBudgetMax(budgetFromString(v))}
+          />
+        </fieldset>
 
-      <label className="flex flex-col gap-2">
-        <span className="font-semibold">
-          Note <span className="font-normal text-neutral-500">(optional)</span>
-        </span>
-        <textarea
+        <Section title="Cuisines you want">
+          {CUISINE_VALUES.map((v) => (
+            <Chip
+              key={v}
+              checked={want.includes(v)}
+              onChange={() => {
+                setWant((w) => toggle(w, v));
+                setAvoid((a) => a.filter((c) => c !== v));
+              }}
+            >
+              {optionLabel(v)}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Cuisines you refuse">
+          {CUISINE_VALUES.map((v) => (
+            <Chip
+              key={v}
+              tone="avoid"
+              checked={avoid.includes(v)}
+              onChange={() => {
+                setAvoid((a) => toggle(a, v));
+                setWant((w) => w.filter((c) => c !== v));
+              }}
+            >
+              {optionLabel(v)}
+            </Chip>
+          ))}
+        </Section>
+
+        <TextArea
+          label={
+            <>
+              Note <span className="font-normal text-ink-soft">(optional)</span>
+            </>
+          }
+          hint={`${note.length}/${NOTE_MAX_LENGTH}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={NOTE_MAX_LENGTH}
           rows={3}
-          className="rounded-lg border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
+          placeholder="Anything the group should know?"
         />
-        <span className="text-xs text-neutral-500">
-          {note.length}/{NOTE_MAX_LENGTH}
-        </span>
-      </label>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      {saved && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          Saved. You can change your answers until the host starts the search.
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-lg bg-orange-600 px-4 py-3 font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
-      >
-        {submitting ? "Saving…" : resubmitting ? "Update answers" : "Submit"}
-      </button>
-    </form>
-  );
-}
-
-function ChipGroup<T extends string>({
-  values,
-  selected,
-  onToggle,
-}: {
-  values: readonly T[];
-  selected: T[];
-  onToggle: (value: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {values.map((v) => {
-        const on = selected.includes(v);
-        return (
-          <label
-            key={v}
-            className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm ${
-              on
-                ? "border-orange-600 bg-orange-600 text-white"
-                : "border-neutral-300 dark:border-neutral-700"
-            }`}
+        {error && (
+          <p
+            role="alert"
+            className="animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
           >
-            <input
-              type="checkbox"
-              checked={on}
-              onChange={() => onToggle(v)}
-              className="sr-only"
-            />
-            {optionLabel(v)}
-          </label>
-        );
-      })}
-    </div>
+            {error}
+          </p>
+        )}
+
+        {saved && (
+          <div
+            role="status"
+            className="flex animate-rise items-center gap-4 rounded-control bg-success-50 px-4 py-3"
+          >
+            <SuccessCheck />
+            <div>
+              <p className="font-extrabold text-success-700">You’re in!</p>
+              <p className="text-sm text-ink-soft">
+                You can change your answers until the host starts the search.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <Button type="submit" fullWidth loading={submitting}>
+          {submitting ? "Saving…" : resubmitting ? "Update answers" : "Submit"}
+        </Button>
+      </form>
+    </Card>
   );
 }
 
-function PriceSelect({
-  label,
-  value,
-  onChange,
+function Section({
+  title,
+  hint,
+  children,
 }: {
-  label: string;
-  value: number | null;
-  onChange: (value: number | null) => void;
+  title: string;
+  hint?: string;
+  children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      {label}
-      <select
-        value={priceSelectValue(value)}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-        className="rounded-lg border border-neutral-300 bg-transparent px-3 py-3 dark:border-neutral-700"
-      >
-        <option value="">Any</option>
-        {PRICE_OPTIONS.map((p) => (
-          <option key={p} value={p}>
-            {"$".repeat(p)}
-          </option>
-        ))}
-      </select>
-    </label>
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-3 text-lg font-extrabold">{title}</legend>
+      <div className="flex flex-wrap gap-2.5">{children}</div>
+      {hint && <p className="text-sm text-ink-soft">{hint}</p>}
+    </fieldset>
   );
 }
