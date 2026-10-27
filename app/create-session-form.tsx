@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { SuccessCheck } from "@/components/ui/SuccessCheck";
 import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse } from "@/lib/api-types";
 
@@ -23,6 +24,25 @@ const MEAL_OPTIONS = [
 
 type MealChoice = "now" | "later";
 
+function PinIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  );
+}
+
 function toLocalInputValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -37,12 +57,15 @@ export function CreateSessionForm() {
   // Filled in when "Later" is picked, so the page can prerender without a clock read.
   const [mealTime, setMealTime] = useState("");
   const [locating, setLocating] = useState(false);
+  // Raw coordinates are a fallback; they open by themselves if location fails.
+  const [showManual, setShowManual] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) {
-      setError("Your browser does not support location. Enter coordinates below.");
+      setError("Your browser does not support location. You can enter coordinates instead.");
+      setShowManual(true);
       return;
     }
     setLocating(true);
@@ -54,7 +77,8 @@ export function CreateSessionForm() {
         setLocating(false);
       },
       () => {
-        setError("Could not get your location. Enter coordinates below.");
+        setError("Could not get your location. You can enter coordinates instead.");
+        setShowManual(true);
         setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 10_000 },
@@ -119,28 +143,49 @@ export function CreateSessionForm() {
       <form onSubmit={onSubmit} className="flex flex-col gap-8">
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-3 text-lg font-extrabold">Where are you?</legend>
+          {hasLocation && !locating ? (
+            <div className="flex animate-rise items-center gap-3 rounded-control bg-success-50 px-4 py-3">
+              <SuccessCheck size={32} />
+              <p className="flex-1 font-extrabold text-success-700">Location set</p>
+              <Button variant="ghost" className="px-3 py-2 text-sm" onClick={useMyLocation}>
+                Update
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={useMyLocation}
+              loading={locating}
+            >
+              {!locating && <PinIcon />}
+              {locating ? "Locating…" : "Use my location"}
+            </Button>
+          )}
           <Button
-            variant="secondary"
-            fullWidth
-            onClick={useMyLocation}
-            loading={locating}
+            variant="ghost"
+            className="self-start px-3 py-2 text-sm"
+            aria-expanded={showManual}
+            onClick={() => setShowManual((s) => !s)}
           >
-            {locating ? "Locating…" : hasLocation ? "Location set ✓ Update" : "Use my location"}
+            {showManual ? "Hide coordinates" : "Enter coordinates instead"}
           </Button>
-          <div className="grid grid-cols-2 gap-3">
-            <TextInput
-              label="Latitude"
-              inputMode="decimal"
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-            />
-            <TextInput
-              label="Longitude"
-              inputMode="decimal"
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-            />
-          </div>
+          {showManual && (
+            <div className="grid animate-rise grid-cols-2 gap-3">
+              <TextInput
+                label="Latitude"
+                inputMode="decimal"
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+              />
+              <TextInput
+                label="Longitude"
+                inputMode="decimal"
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+              />
+            </div>
+          )}
         </fieldset>
 
         <SegmentedControl
