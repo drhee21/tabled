@@ -7,12 +7,12 @@
 </p>
 
 ### What is this?
-Tabled collects responses from a group of people who don't know what they want to eat, then uses a LLM to make the call for them.
+Tabled collects responses from a group of people who don't know what they want to eat, then uses a LLM to narrow the list of options.
 
 ### How do I use it?
 The host generates a unique link to share with the group. Accessing the link allows members of the group to vote on their preferences.
 
-### Where do I use this?
+### Where can I find this?
 Deploying soon...
 
 ### Why...?
