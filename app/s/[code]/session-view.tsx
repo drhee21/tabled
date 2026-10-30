@@ -11,6 +11,7 @@ import type { ApiErrorResponse, SessionStateResponse } from "@/lib/api-types";
 import { cx } from "@/lib/cx";
 import { createRealtimeClient } from "@/lib/realtime-client";
 import { PreferencesForm } from "./preferences-form";
+import { SearchPanel } from "./search-panel";
 
 type LoadState =
   | { kind: "loading" }
@@ -159,6 +160,16 @@ export function SessionView() {
         <Card tone="tint">
           <p className="font-semibold">Preferences are locked for this session.</p>
         </Card>
+      )}
+
+      {session.viewer.is_host && session.host && session.status === "collecting" && (
+        <SearchPanel
+          code={session.join_code}
+          searchesUsed={session.host.searches_used}
+          candidates={session.host.candidates}
+          participants={session.participants}
+          onSearched={load}
+        />
       )}
 
       <section>
