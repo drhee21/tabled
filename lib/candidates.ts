@@ -23,18 +23,29 @@ export async function claimSearch(session: SessionRow): Promise<SessionRow | nul
   return data;
 }
 
-/** Back to collecting. Pass the previous count to give the search back after a failed call. */
-export async function releaseSearch(sessionId: string, searchCount: number): Promise<void> {
+/**
+ * Leave `searching`: back to collecting by default, or on to voting once a
+ * shortlist is stored. Pass the previous count to give the search back after a
+ * failed call.
+ */
+export async function releaseSearch(
+  sessionId: string,
+  searchCount: number,
+  nextStatus: "collecting" | "voting" = "collecting",
+): Promise<void> {
   const { error } = await getDb()
     .from("sessions")
-    .update({ status: "collecting", search_count: searchCount })
+    .update({ status: nextStatus, search_count: searchCount })
     .eq("id", sessionId)
     .eq("status", "searching");
   if (error) throw new Error(error.message);
 }
 
+/** A participant's answers plus their free-text note, which only the ranking prompt may use. */
+export type SubmittedAnswers = ParticipantAnswers & { note: string | null };
+
 /** Answers from everyone who has submitted. Server-only: it reads preference contents. */
-export async function listSubmittedAnswers(sessionId: string): Promise<ParticipantAnswers[]> {
+export async function listSubmittedAnswers(sessionId: string): Promise<SubmittedAnswers[]> {
   const db = getDb();
   const { data: people, error: peopleError } = await db
     .from("participants")
@@ -45,7 +56,7 @@ export async function listSubmittedAnswers(sessionId: string): Promise<Participa
 
   const { data: prefs, error: prefsError } = await db
     .from("preferences")
-    .select("participant_id, dietary, budget_min, budget_max, cuisines_want, cuisines_avoid")
+    .select("participant_id, dietary, budget_min, budget_max, cuisines_want, cuisines_avoid, note")
     .in(
       "participant_id",
       people.map((p: { id: string }) => p.id),
@@ -53,7 +64,7 @@ export async function listSubmittedAnswers(sessionId: string): Promise<Participa
   if (prefsError) throw new Error(prefsError.message);
 
   const names = new Map(people.map((p: { id: string; display_name: string }) => [p.id, p.display_name]));
-  type PrefsRow = Omit<ParticipantAnswers, "display_name"> & { participant_id: string };
+  type PrefsRow = Omit<SubmittedAnswers, "display_name"> & { participant_id: string };
   return (prefs ?? []).map((row: PrefsRow) => ({
     display_name: names.get(row.participant_id) ?? "Someone",
     dietary: row.dietary,
@@ -61,6 +72,7 @@ export async function listSubmittedAnswers(sessionId: string): Promise<Participa
     budget_max: row.budget_max,
     cuisines_want: row.cuisines_want,
     cuisines_avoid: row.cuisines_avoid,
+    note: row.note,
   }));
 }
 

@@ -3,6 +3,7 @@ import { listCandidateSummaries } from "@/lib/candidates";
 import { jsonError, serverError } from "@/lib/http";
 import { getOwnPreferences, listSubmittedParticipantIds } from "@/lib/preferences";
 import { hostRealtimeTopic } from "@/lib/realtime";
+import { getShortlist } from "@/lib/recommendations";
 import {
   findParticipantByToken,
   findSessionByCode,
@@ -49,6 +50,9 @@ export async function GET(
     // The host also sees the places the last search kept.
     const candidates = host ? await listCandidateSummaries(session) : null;
 
+    // The shortlist goes to people who joined, not to strangers with the link.
+    const shortlist = host || me ? await getShortlist(session) : null;
+
     // Coordinates are deliberately left out of the response.
     return NextResponse.json({
       join_code: session.join_code,
@@ -65,6 +69,7 @@ export async function GET(
         preferences: ownPreferences,
         realtime_topic: host ? hostRealtimeTopic(session.host_token_hash) : null,
       },
+      ...(shortlist && { shortlist }),
       ...(candidates && {
         host: { searches_used: session.search_count, candidates },
       }),

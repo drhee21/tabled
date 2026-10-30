@@ -36,9 +36,22 @@ export interface BudgetSummary {
   left_out: string[];
 }
 
+/** A shortlisted place. `reason` is null when code ranked the shortlist. */
+export interface RecommendationSummary extends CandidateSummary {
+  rank: number;
+  reason: string | null;
+}
+
+export interface Shortlist {
+  /** "llm" when the model wrote the reasons; "code" when the fallback ranking was used. */
+  ranked_by: "llm" | "code";
+  picks: RecommendationSummary[];
+}
+
 export interface SearchResponse {
   candidates: CandidateSummary[];
   budget: BudgetSummary | null;
+  shortlist: Shortlist;
   searches_used: number;
 }
 
@@ -63,6 +76,8 @@ export interface SessionStateResponse {
     /** Broadcast channel for live submission events. Host only. */
     realtime_topic: string | null;
   };
+  /** The ranked places everyone votes on. Present once a search has finished, for people who joined. */
+  shortlist?: Shortlist;
   /** Host only: searches run so far, and the places the last one kept. */
   host?: { searches_used: number; candidates: CandidateSummary[] };
 }
