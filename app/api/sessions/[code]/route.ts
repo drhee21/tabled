@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { listCandidateSummaries } from "@/lib/candidates";
 import { jsonError, serverError } from "@/lib/http";
 import { getOwnPreferences, listSubmittedParticipantIds } from "@/lib/preferences";
 import { hostRealtimeTopic } from "@/lib/realtime";
@@ -45,6 +46,9 @@ export async function GET(
       me ? getOwnPreferences(me.id) : Promise.resolve(null),
     ]);
 
+    // The host also sees the places the last search kept.
+    const candidates = host ? await listCandidateSummaries(session) : null;
+
     // Coordinates are deliberately left out of the response.
     return NextResponse.json({
       join_code: session.join_code,
@@ -61,6 +65,9 @@ export async function GET(
         preferences: ownPreferences,
         realtime_topic: host ? hostRealtimeTopic(session.host_token_hash) : null,
       },
+      ...(candidates && {
+        host: { searches_used: session.search_count, candidates },
+      }),
     });
   } catch (err) {
     return serverError(err);
