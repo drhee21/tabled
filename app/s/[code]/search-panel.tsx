@@ -129,7 +129,7 @@ export function SearchPanel({
             </p>
           )}
           <p className="mt-1 text-sm text-ink-soft">
-            Each search uses a paid lookup, and you get {MAX_SEARCHES} per session.
+            You get {MAX_SEARCHES} searches per session.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <Button fullWidth loading={searching} onClick={() => void search()}>
