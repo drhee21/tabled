@@ -11,6 +11,7 @@ export interface SessionRow {
   radius_m: number;
   meal_time: string;
   status: SessionStatus;
+  search_count: number;
   created_at: string;
   expires_at: string;
 }
