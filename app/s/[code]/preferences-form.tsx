@@ -149,7 +149,7 @@ export function PreferencesForm({
           ))}
         </Section>
 
-        <Section title="Cuisines you refuse">
+        <Section title="Cuisines you don’t want">
           {CUISINE_VALUES.map((v) => (
             <Chip
               key={v}
