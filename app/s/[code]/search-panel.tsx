@@ -9,16 +9,9 @@ import type {
   CandidateSummary,
   SearchResponse,
 } from "@/lib/api-types";
+import { distanceLabel, priceLabel } from "@/lib/format";
 import { optionLabel } from "@/lib/preference-options";
 import { MAX_SEARCHES } from "@/lib/search-limits";
-
-function priceLabel(level: number): string {
-  return level === 0 ? "Free" : "$".repeat(level);
-}
-
-function distanceLabel(meters: number): string {
-  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
-}
 
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";

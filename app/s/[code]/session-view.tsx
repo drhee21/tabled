@@ -12,6 +12,7 @@ import { cx } from "@/lib/cx";
 import { createRealtimeClient } from "@/lib/realtime-client";
 import { PreferencesForm } from "./preferences-form";
 import { SearchPanel } from "./search-panel";
+import { Shortlist } from "./shortlist";
 
 type LoadState =
   | { kind: "loading" }
@@ -161,6 +162,8 @@ export function SessionView() {
           <p className="font-semibold">Preferences are locked for this session.</p>
         </Card>
       )}
+
+      {session.shortlist && <Shortlist shortlist={session.shortlist} />}
 
       {session.viewer.is_host && session.host && session.status === "collecting" && (
         <SearchPanel
