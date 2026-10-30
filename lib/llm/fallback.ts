@@ -1,7 +1,7 @@
 // Used when the model's answer cannot be trusted: a plain score from code.
 import type { ScoredCandidate } from "../places/types";
 import type { RankedPick, RankingParticipant } from "./types";
-import { MAX_PICKS } from "./validate";
+import { SHORTLIST_SIZE } from "./validate";
 
 /** How many people want at least one of the place's cuisines. */
 function wantedMatches(
@@ -16,7 +16,7 @@ function wantedMatches(
 /**
  * Most wanted-cuisine matches first, then nearest, then highest rated (unrated
  * last), then place_id so the order never depends on input order. Takes the top
- * five and gives no reasons.
+ * three and gives no reasons.
  */
 export function fallbackRanking(
   candidates: readonly ScoredCandidate[],
@@ -31,6 +31,6 @@ export function fallbackRanking(
         (b.c.rating ?? -1) - (a.c.rating ?? -1) ||
         a.c.place_id.localeCompare(b.c.place_id),
     )
-    .slice(0, MAX_PICKS)
+    .slice(0, SHORTLIST_SIZE)
     .map(({ c }, i) => ({ place_id: c.place_id, rank: i + 1, reason: null }));
 }

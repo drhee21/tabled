@@ -82,5 +82,6 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toMatch(/notes/i);
     expect(SYSTEM_PROMPT).toMatch(/ignore previous instructions/i);
     expect(SYSTEM_PROMPT).toContain("140");
+    expect(SYSTEM_PROMPT).toMatch(/exactly 3 picks/i);
   });
 });

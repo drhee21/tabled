@@ -3,13 +3,13 @@
 // JSON string values inside delimited data blocks.
 import type { ScoredCandidate } from "../places/types";
 import type { RankingParticipant } from "./types";
-import { MAX_PICKS, MAX_REASON_LENGTH, MIN_PICKS, type ValidationIssue } from "./validate";
+import { MAX_REASON_LENGTH, SHORTLIST_SIZE, type ValidationIssue } from "./validate";
 
-export const SYSTEM_PROMPT = `You help a group of friends decide where to eat. You are given a list of candidate restaurants and what each person in the group wants. Rank the best ${MIN_PICKS} to ${MAX_PICKS} candidates for the whole group.
+export const SYSTEM_PROMPT = `You help a group of friends decide where to eat. You are given a list of candidate restaurants and what each person in the group wants. Pick the best ${SHORTLIST_SIZE} candidates for the whole group and rank them.
 
 Rules:
 - Choose only from the candidates provided. Use each place_id exactly as given. Never invent a place or a place_id.
-- Return between ${MIN_PICKS} and ${MAX_PICKS} picks. rank 1 is the best, and no two picks share a place_id or a rank.
+- Return exactly ${SHORTLIST_SIZE} picks. rank 1 is the best, and no two picks share a place_id or a rank.
 - Write one short reason per pick, at most ${MAX_REASON_LENGTH} characters. Each reason must refer to the group's preferences, for example how many people want that cuisine or that it avoids what someone doesn't want.
 - Do not state any fact about a restaurant that is not in the candidate data. Do not mention menus, dishes, atmosphere, reviews, opening hours or anything else you were not given.
 - dietary_unknown: true means the data cannot confirm the place suits the group's dietary needs. Do not claim it does.

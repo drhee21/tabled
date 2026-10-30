@@ -59,7 +59,7 @@ describe("rankCandidates", () => {
 
     expect(llm.requests).toHaveLength(MAX_ATTEMPTS);
     expect(result.ranked_by).toBe("code");
-    expect(result.picks).toHaveLength(5);
+    expect(result.picks).toHaveLength(3);
     expect(result.picks.every((p) => p.reason === null)).toBe(true);
     expect(result.picks.map((p) => p.place_id)).not.toContain("made-up-restaurant");
   });
@@ -88,7 +88,7 @@ describe("rankCandidates", () => {
     const llm = scriptedLLM([new LLMError("down"), new LLMError("down")]);
     const result = await rankCandidates(llm, fiveCandidates(), participants);
     expect(result.ranked_by).toBe("code");
-    expect(result.picks).toHaveLength(5);
+    expect(result.picks).toHaveLength(3);
   });
 
   it("logs issue codes only, never the answer, a note or a name", async () => {

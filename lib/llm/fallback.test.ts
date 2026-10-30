@@ -18,12 +18,11 @@ describe("fallbackRanking", () => {
     ];
 
     // Thai: 2 people, pizza: 2 people, none: 0. Tie broken by distance, then rating.
+    // Only the top three are kept, so the far Thai place and the no-match place drop out.
     expect(fallbackRanking(candidates, people).map((p) => p.place_id)).toEqual([
       "pizza",
       "near-thai-better",
       "near-thai",
-      "far-thai",
-      "near-none",
     ]);
   });
 
@@ -36,11 +35,11 @@ describe("fallbackRanking", () => {
     expect(ids).toEqual(["rated", "unrated"]);
   });
 
-  it("returns at most five picks, numbered from 1, with no reasons", () => {
+  it("returns exactly three picks, numbered from 1, with no reasons", () => {
     const many = [...fiveCandidates(), makeCandidate({ place_id: "f" }), makeCandidate({ place_id: "g" })];
     const picks = fallbackRanking(many, []);
-    expect(picks).toHaveLength(5);
-    expect(picks.map((p) => p.rank)).toEqual([1, 2, 3, 4, 5]);
+    expect(picks).toHaveLength(3);
+    expect(picks.map((p) => p.rank)).toEqual([1, 2, 3]);
     expect(picks.every((p) => p.reason === null)).toBe(true);
   });
 

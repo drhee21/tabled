@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answer, VALID_ANSWER } from "./test-fixtures";
-import { MAX_REASON_LENGTH, validateRanking } from "./validate";
+import { MAX_REASON_LENGTH, SHORTLIST_SIZE, validateRanking } from "./validate";
 
 const IDS = ["a", "b", "c", "d", "e", "f"];
 
@@ -27,11 +27,10 @@ describe("validateRanking", () => {
     });
   });
 
-  it("accepts three, four and five picks", () => {
-    for (const n of [3, 4, 5]) {
-      const picks = IDS.slice(0, n).map((id, i) => pick(id, i + 1));
-      expect(validateRanking(answer(picks), IDS).ok, `${n} picks`).toBe(true);
-    }
+  it("accepts exactly three picks", () => {
+    const picks = IDS.slice(0, SHORTLIST_SIZE).map((id, i) => pick(id, i + 1));
+    expect(SHORTLIST_SIZE).toBe(3);
+    expect(validateRanking(answer(picks), IDS).ok).toBe(true);
   });
 
   it("sorts by rank, renumbers from 1 and trims reasons", () => {
@@ -79,9 +78,11 @@ describe("validateRanking", () => {
     expect(issuesOf(answer([]))).toEqual(["too_few_picks"]);
   });
 
-  it("rejects more than five picks", () => {
-    const six = IDS.map((id, i) => pick(id, i + 1));
-    expect(issuesOf(JSON.stringify({ picks: six }))).toContain("too_many_picks");
+  it("rejects more than three picks", () => {
+    for (const n of [4, 5, 6]) {
+      const picks = IDS.slice(0, n).map((id, i) => pick(id, i + 1));
+      expect(issuesOf(JSON.stringify({ picks })), `${n} picks`).toEqual(["too_many_picks"]);
+    }
   });
 
   it("rejects a reason over the length cap", () => {
