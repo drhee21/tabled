@@ -226,11 +226,13 @@ export function SessionView() {
 function ShareLink({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const [url, setUrl] = useState("");
+  const [canShare, setCanShare] = useState(false);
 
   useEffect(() => {
-    // window is only available after mount.
+    // window and navigator are only available after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(`${window.location.origin}/s/${code}`);
+    setCanShare(typeof navigator.share === "function");
   }, [code]);
 
   async function copy() {
@@ -243,19 +245,45 @@ function ShareLink({ code }: { code: string }) {
     }
   }
 
+  // Opens the system share sheet (Messages, AirDrop and so on). Dismissing it is not an error.
+  async function share() {
+    try {
+      await navigator.share({
+        title: "Tabled",
+        text: "Join me to pick where to eat",
+        url,
+      });
+    } catch {
+      // Cancelled by the person, or the browser refused. Copy link is still there.
+    }
+  }
+
   return (
     <Card tone="tint">
       <h2 className="text-lg font-extrabold">Invite your group</h2>
       <p className="mt-2 break-all rounded-control bg-white px-4 py-3 font-mono text-sm shadow-soft">
         {url}
       </p>
-      <Button
-        variant="secondary"
-        className="mt-4 bg-white hover:bg-brand-100"
-        onClick={() => void copy()}
-      >
-        {copied ? "Copied!" : "Copy link"}
-      </Button>
+      <div className="mt-4 flex gap-2">
+        <Button
+          variant="secondary"
+          className="bg-white hover:bg-brand-100"
+          onClick={() => void copy()}
+        >
+          {copied ? "Copied!" : "Copy link"}
+        </Button>
+        {canShare && (
+          <Button
+            variant="secondary"
+            className="bg-white px-3.5 hover:bg-brand-100"
+            aria-label="Share invite link"
+            title="Share"
+            onClick={() => void share()}
+          >
+            <ShareIcon />
+          </Button>
+        )}
+      </div>
     </Card>
   );
 }
@@ -313,5 +341,26 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<vo
         </Button>
       </form>
     </Card>
+  );
+}
+
+/** The standard share glyph: a tray with an arrow leaving it. */
+function ShareIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 15V3" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2" />
+    </svg>
   );
 }
