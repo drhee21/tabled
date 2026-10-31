@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TextInput } from "@/components/ui/TextInput";
-import type { ApiErrorResponse, SessionStateResponse } from "@/lib/api-types";
+import type { ApiErrorResponse, SessionStateResponse, VoteCounts, VoteState } from "@/lib/api-types";
 import { cx } from "@/lib/cx";
 import { createRealtimeClient } from "@/lib/realtime-client";
 import { PreferencesForm } from "./preferences-form";
 import { SearchPanel } from "./search-panel";
-import { Shortlist } from "./shortlist";
+import { ResultScreen } from "./result-screen";
+import { VotePanel } from "./vote-panel";
 
 type LoadState =
   | { kind: "loading" }
@@ -102,6 +103,50 @@ export function SessionView() {
     };
   }, [topic, load, markJustSubmitted]);
 
+  // Live vote counts and the end of voting. Only people who joined get this topic,
+  // and events carry counts only, never who voted for what.
+  const votesTopic = state.kind === "ready" ? state.session.viewer.votes_topic : null;
+  useEffect(() => {
+    if (!votesTopic) return;
+    const client = createRealtimeClient();
+    if (!client) return;
+
+    const channel = client
+      .channel(votesTopic)
+      .on("broadcast", { event: "votes" }, ({ payload }) => {
+        const counts = payload as VoteCounts;
+        setState((prev) => {
+          if (prev.kind !== "ready") return prev;
+          // Voting just started (a search finished): load the shortlist.
+          if (prev.session.status !== "voting" || !prev.session.votes) {
+            void load();
+            return prev;
+          }
+          return {
+            kind: "ready",
+            session: {
+              ...prev.session,
+              votes: { ...prev.session.votes, ...counts },
+            },
+          };
+        });
+      })
+      .on("broadcast", { event: "closed" }, () => void load())
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void load();
+      });
+
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [votesTopic, load]);
+
+  const setVotes = useCallback((votes: VoteState) => {
+    setState((prev) =>
+      prev.kind === "ready" ? { kind: "ready", session: { ...prev.session, votes } } : prev,
+    );
+  }, []);
+
   if (state.kind === "loading") {
     return <p className="animate-pulse text-ink-soft">Loading session…</p>;
   }
@@ -122,6 +167,9 @@ export function SessionView() {
 
   const { session } = state;
   const joined = session.viewer.participant_id !== null;
+  const canJoin =
+    session.status === "collecting" ||
+    (session.status === "voting" && session.viewer.is_host);
 
   return (
     <div className="flex flex-col gap-section">
@@ -141,10 +189,9 @@ export function SessionView() {
 
       {session.viewer.is_host && <ShareLink code={session.join_code} />}
 
-      {!joined && session.status === "collecting" && (
-        <JoinForm code={session.join_code} onJoined={load} />
-      )}
-      {!joined && session.status !== "collecting" && (
+      {/* A host who never joined may still join while voting, so they can vote. */}
+      {!joined && canJoin && <JoinForm code={session.join_code} onJoined={load} />}
+      {!joined && !canJoin && (
         <Card tone="tint">
           <p className="font-semibold">This session is no longer accepting new people.</p>
         </Card>
@@ -157,13 +204,30 @@ export function SessionView() {
           onSaved={load}
         />
       )}
-      {joined && session.status !== "collecting" && (
+      {joined && session.status === "searching" && (
         <Card tone="tint">
           <p className="font-semibold">Preferences are locked for this session.</p>
         </Card>
       )}
 
-      {session.shortlist && <Shortlist shortlist={session.shortlist} />}
+      {session.status === "voting" && session.shortlist && session.votes && (
+        <VotePanel
+          code={session.join_code}
+          shortlist={session.shortlist}
+          votes={session.votes}
+          canVote={joined}
+          isHost={session.viewer.is_host}
+          onVotes={setVotes}
+          onClosed={load}
+        />
+      )}
+      {session.status === "closed" && session.shortlist && session.votes && (
+        <ResultScreen
+          shortlist={session.shortlist}
+          votes={session.votes}
+          winnerPlaceId={session.winner_place_id ?? null}
+        />
+      )}
 
       {session.viewer.is_host && session.host && session.status === "collecting" && (
         <SearchPanel
