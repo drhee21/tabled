@@ -48,6 +48,21 @@ export interface Shortlist {
   picks: RecommendationSummary[];
 }
 
+/** Vote totals. Counts only: nobody can see who voted for what. */
+export interface VoteCounts {
+  /** Votes per shortlisted place, including zeros. */
+  counts: Record<string, number>;
+  /** People who have voted. */
+  voted: number;
+  /** People who joined and can vote. */
+  total: number;
+}
+
+export interface VoteState extends VoteCounts {
+  /** The viewer's own vote, or null if they have not voted. */
+  my_vote: string | null;
+}
+
 export interface SearchResponse {
   candidates: CandidateSummary[];
   budget: BudgetSummary | null;
@@ -75,9 +90,15 @@ export interface SessionStateResponse {
     preferences: OwnPreferences | null;
     /** Broadcast channel for live submission events. Host only. */
     realtime_topic: string | null;
+    /** Broadcast channel for live vote counts. Only people who joined get it. */
+    votes_topic: string | null;
   };
   /** The ranked places everyone votes on. Present once a search has finished, for people who joined. */
   shortlist?: Shortlist;
+  /** Vote totals and the viewer's own vote, once voting has started. For people who joined. */
+  votes?: VoteState;
+  /** Set once the host has closed voting. */
+  winner_place_id?: string | null;
   /** Host only: searches run so far, and the places the last one kept. */
   host?: { searches_used: number; candidates: CandidateSummary[] };
 }

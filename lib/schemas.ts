@@ -77,3 +77,10 @@ export const joinSessionSchema = z
   })
   .strict();
 export type JoinSessionInput = z.infer<typeof joinSessionSchema>;
+
+export const voteSchema = z
+  .object({
+    place_id: z.string().trim().min(1, "Choose a place").max(300),
+  })
+  .strict();
+export type VoteInput = z.infer<typeof voteSchema>;

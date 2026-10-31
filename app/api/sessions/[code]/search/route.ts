@@ -11,10 +11,12 @@ import { getLLMClient } from "@/lib/llm";
 import { rankCandidates } from "@/lib/llm/rank";
 import { getPlacesProvider, PlacesProviderError } from "@/lib/places";
 import { searchCandidates } from "@/lib/places/search";
+import { broadcastVotes } from "@/lib/realtime";
 import { getShortlist, replaceRecommendations } from "@/lib/recommendations";
 import { MAX_SEARCHES } from "@/lib/search-limits";
 import { findSessionByCode, isExpired, isHost } from "@/lib/sessions";
 import { hostCookieName, normalizeJoinCode } from "@/lib/tokens";
+import { readVotes, toCounts } from "@/lib/votes";
 
 export async function POST(
   request: NextRequest,
@@ -101,6 +103,15 @@ export async function POST(
       });
     } finally {
       await releaseSearch(claimed.id, searchCountAfter, nextStatus);
+      if (nextStatus === "voting") {
+        // Tell everyone who joined that voting has started, so their page loads the shortlist.
+        try {
+          const { state } = await readVotes(claimed.id, null);
+          await broadcastVotes(claimed.host_token_hash, toCounts(state));
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : "Vote broadcast failed");
+        }
+      }
     }
   } catch (err) {
     return serverError(err);

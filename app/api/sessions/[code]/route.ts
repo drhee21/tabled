@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listCandidateSummaries } from "@/lib/candidates";
 import { jsonError, serverError } from "@/lib/http";
 import { getOwnPreferences, listSubmittedParticipantIds } from "@/lib/preferences";
-import { hostRealtimeTopic } from "@/lib/realtime";
+import { hostRealtimeTopic, votesRealtimeTopic } from "@/lib/realtime";
 import { getShortlist } from "@/lib/recommendations";
+import { readVotes } from "@/lib/votes";
 import {
   findParticipantByToken,
   findSessionByCode,
@@ -53,6 +54,10 @@ export async function GET(
     // The shortlist goes to people who joined, not to strangers with the link.
     const shortlist = host || me ? await getShortlist(session) : null;
 
+    // Vote totals and the viewer's own vote, never anyone else's. Joined people only.
+    const voting = session.status === "voting" || session.status === "closed";
+    const votes = voting && (host || me) ? await readVotes(session.id, me?.id ?? null) : null;
+
     // Coordinates are deliberately left out of the response.
     return NextResponse.json({
       join_code: session.join_code,
@@ -68,8 +73,12 @@ export async function GET(
         participant_id: me?.id ?? null,
         preferences: ownPreferences,
         realtime_topic: host ? hostRealtimeTopic(session.host_token_hash) : null,
+        votes_topic:
+          host || me ? votesRealtimeTopic(session.host_token_hash) : null,
       },
       ...(shortlist && { shortlist }),
+      ...(votes && { votes: votes.state }),
+      ...(votes && session.status === "closed" && { winner_place_id: votes.tally.winner }),
       ...(candidates && {
         host: { searches_used: session.search_count, candidates },
       }),

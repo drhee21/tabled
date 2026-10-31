@@ -45,13 +45,59 @@ function checkCollecting(
   return { ok: true };
 }
 
+/**
+ * Joining closes when the search starts. The one exception is the host: if they
+ * never joined, they may join while voting so they can cast a vote too.
+ */
 export function checkCanJoin(
   session: SessionState,
   now: Date = new Date(),
+  options: { host?: boolean } = {},
 ): StateCheck {
+  if (options.host && session.status === "voting" && !isExpired(session, now)) {
+    return { ok: true };
+  }
   return checkCollecting(
     session,
     "This session is no longer accepting new people",
+    now,
+  );
+}
+
+function checkVoting(
+  session: SessionState,
+  notVotingError: Record<Exclude<SessionStatus, "voting">, string>,
+  now: Date,
+): StateCheck {
+  if (isExpired(session, now)) {
+    return { ok: false, status: 410, error: "This session has expired" };
+  }
+  if (session.status !== "voting") {
+    return { ok: false, status: 409, error: notVotingError[session.status] };
+  }
+  return { ok: true };
+}
+
+export function checkCanVote(session: SessionState, now: Date = new Date()): StateCheck {
+  return checkVoting(
+    session,
+    {
+      collecting: "Voting has not started yet",
+      searching: "Voting has not started yet",
+      closed: "Voting has closed",
+    },
+    now,
+  );
+}
+
+export function checkCanClose(session: SessionState, now: Date = new Date()): StateCheck {
+  return checkVoting(
+    session,
+    {
+      collecting: "There is nothing to close yet. Run a search first",
+      searching: "There is nothing to close yet. Run a search first",
+      closed: "Voting is already closed",
+    },
     now,
   );
 }

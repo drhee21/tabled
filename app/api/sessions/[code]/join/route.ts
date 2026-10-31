@@ -1,13 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jsonError, parseBody, serverError } from "@/lib/http";
+import { broadcastVotes } from "@/lib/realtime";
 import { joinSessionSchema } from "@/lib/schemas";
 import {
   addParticipant,
   checkCanJoin,
   findParticipantByToken,
   findSessionByCode,
+  isHost,
 } from "@/lib/sessions";
+import { readVotes, toCounts } from "@/lib/votes";
 import {
+  hostCookieName,
   normalizeJoinCode,
   participantCookieName,
   tokenCookieOptions,
@@ -27,7 +31,8 @@ export async function POST(
     const session = await findSessionByCode(code);
     if (!session) return jsonError(404, "Session not found");
 
-    const check = checkCanJoin(session);
+    const host = isHost(session, request.cookies.get(hostCookieName(code))?.value);
+    const check = checkCanJoin(session, new Date(), { host });
     if (!check.ok) return jsonError(check.status, check.error);
 
     const cookieName = participantCookieName(code);
@@ -47,6 +52,12 @@ export async function POST(
       session.id,
       parsed.data.display_name,
     );
+    // A host joining during voting changes "X of N voted" for everyone.
+    if (session.status === "voting") {
+      const { state } = await readVotes(session.id, participant.id);
+      await broadcastVotes(session.host_token_hash, toCounts(state));
+    }
+
     const res = NextResponse.json(
       {
         participant_id: participant.id,
