@@ -7,7 +7,7 @@
 </p>
 
 ### What is this?
-Tabled collects responses from a group of people who don't know what they want to eat, then uses a LLM to narrow the list of options.
+Tabled collects responses from a group of people who don't know what they want to eat, then uses a LLM to narrow a list of real restaurant options.
 
 ### How do I use it?
 The host generates a unique link to share with the group. Accessing the link allows members of the group to vote on their preferences.
