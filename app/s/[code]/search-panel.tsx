@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Notice } from "@/components/ui/Notice";
 import type {
   ApiErrorResponse,
   BudgetSummary,
   CandidateSummary,
   SearchResponse,
 } from "@/lib/api-types";
+import { failureFromResponse, NETWORK_FAILURE, type Failure } from "@/lib/failure";
 import { distanceLabel, priceLabel } from "@/lib/format";
 import { optionLabel } from "@/lib/preference-options";
 import { MAX_SEARCHES } from "@/lib/search-limits";
@@ -46,7 +48,7 @@ export function SearchPanel({
   onSearched: () => Promise<void>;
 }) {
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [budget, setBudget] = useState<BudgetSummary | null>(null);
   // Every search is a paid call, so the button is hidden behind a check-in question.
   const [confirming, setConfirming] = useState(false);
@@ -67,13 +69,13 @@ export function SearchPanel({
       if (!res.ok) {
         const err = body as ApiErrorResponse & { budget?: BudgetSummary | null };
         setBudget(err.budget ?? null);
-        setError(err.error);
+        setError(failureFromResponse(res.status, err, "search"));
       } else {
         setBudget((body as SearchResponse).budget);
       }
       await onSearched();
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setSearching(false);
       setConfirming(false);
@@ -157,12 +159,9 @@ export function SearchPanel({
       </p>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
-        >
-          {error}
-        </p>
+        <Notice className="mt-4" title={error.title} hint={error.hint}>
+          {error.message}
+        </Notice>
       )}
       {note && (
         <p className="mt-4 rounded-control bg-brand-50 px-4 py-3 text-sm font-semibold text-ink">

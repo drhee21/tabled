@@ -2,25 +2,28 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse, SessionStateResponse, VoteCounts, VoteState } from "@/lib/api-types";
 import { cx } from "@/lib/cx";
-import { createRealtimeClient } from "@/lib/realtime-client";
+import { failureFromResponse, NETWORK_FAILURE, shouldReload, type Failure } from "@/lib/failure";
 import { PreferencesForm } from "./preferences-form";
 import { SearchPanel } from "./search-panel";
 import { ResultScreen } from "./result-screen";
+import { combineStatus, useRealtimeChannel, type ConnectionStatus } from "./use-realtime-channel";
 import { VotePanel } from "./vote-panel";
 
 type LoadState =
   | { kind: "loading" }
-  | { kind: "error"; message: string }
+  | { kind: "error"; failure: Failure }
   | { kind: "ready"; session: SessionStateResponse };
 
 const JUST_SUBMITTED_MS = 1600;
+const CONFIRM_VOTES_MS = 400;
 
 export function SessionView() {
   const { code } = useParams<{ code: string }>();
@@ -39,19 +42,30 @@ export function SessionView() {
     }, JUST_SUBMITTED_MS);
   }, []);
 
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(confirmTimer.current), []);
+
   const load = useCallback(async () => {
+    const fail = (failure: Failure) =>
+      setState((prev) =>
+        // A refresh that fails for a passing reason (no signal, a server hiccup)
+        // keeps what the person is already looking at.
+        prev.kind === "ready" && (failure.kind === "network" || failure.kind === "server")
+          ? prev
+          : { kind: "error", failure },
+      );
     try {
       const res = await fetch(`/api/sessions/${encodeURIComponent(code)}`, {
         cache: "no-store",
       });
       const body: unknown = await res.json();
       if (!res.ok) {
-        setState({ kind: "error", message: (body as ApiErrorResponse).error });
+        fail(failureFromResponse(res.status, body as ApiErrorResponse));
         return;
       }
       setState({ kind: "ready", session: body as SessionStateResponse });
     } catch {
-      setState({ kind: "error", message: "Network error. Please try again." });
+      fail(NETWORK_FAILURE);
     }
   }, [code]);
 
@@ -64,14 +78,10 @@ export function SessionView() {
   // Live submission status. Only the host is given a topic to listen on, and
   // events carry a participant id and nothing else.
   const topic = state.kind === "ready" ? state.session.viewer.realtime_topic : null;
-  useEffect(() => {
-    if (!topic) return;
-    const client = createRealtimeClient();
-    if (!client) return;
-
-    const channel = client
-      .channel(topic)
-      .on("broadcast", { event: "submitted" }, ({ payload }) => {
+  const hostStatus = useRealtimeChannel(
+    topic,
+    {
+      submitted: (payload) => {
         const id = (payload as { participant_id?: string }).participant_id;
         if (!id) return;
         markJustSubmitted(id);
@@ -92,28 +102,23 @@ export function SessionView() {
             },
           };
         });
-      })
-      // Catch up on anything missed before the subscription was live.
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") void load();
-      });
-
-    return () => {
-      void client.removeChannel(channel);
-    };
-  }, [topic, load, markJustSubmitted]);
+      },
+    },
+    // Catch up on anything missed before the subscription was live.
+    () => void load(),
+  );
 
   // Live vote counts and the end of voting. Only people who joined get this topic,
   // and events carry counts only, never who voted for what.
   const votesTopic = state.kind === "ready" ? state.session.viewer.votes_topic : null;
-  useEffect(() => {
-    if (!votesTopic) return;
-    const client = createRealtimeClient();
-    if (!client) return;
-
-    const channel = client
-      .channel(votesTopic)
-      .on("broadcast", { event: "votes" }, ({ payload }) => {
+  const votesStatus = useRealtimeChannel(
+    votesTopic,
+    {
+      votes: (payload) => {
+        // Anyone on this topic can send to it, so the counts are shown at once as a
+        // hint and then confirmed with the server a moment later.
+        if (confirmTimer.current) clearTimeout(confirmTimer.current);
+        confirmTimer.current = setTimeout(() => void load(), CONFIRM_VOTES_MS);
         const counts = payload as VoteCounts;
         setState((prev) => {
           if (prev.kind !== "ready") return prev;
@@ -130,16 +135,12 @@ export function SessionView() {
             },
           };
         });
-      })
-      .on("broadcast", { event: "closed" }, () => void load())
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") void load();
-      });
-
-    return () => {
-      void client.removeChannel(channel);
-    };
-  }, [votesTopic, load]);
+      },
+      closed: () => void load(),
+    },
+    () => void load(),
+  );
+  const connection = combineStatus([hostStatus, votesStatus]);
 
   const setVotes = useCallback((votes: VoteState) => {
     setState((prev) =>
@@ -151,16 +152,32 @@ export function SessionView() {
     return <p className="animate-pulse text-ink-soft">Loading session…</p>;
   }
   if (state.kind === "error") {
+    const { failure } = state;
+    const retryable = failure.kind === "network" || failure.kind === "server";
     return (
       <Card className="animate-rise">
         <h1 className="text-2xl font-extrabold">Can’t open this session</h1>
-        <p className="mt-2 font-semibold text-danger-700">{state.message}</p>
-        <Link
-          href="/"
-          className="mt-6 inline-block rounded-control bg-brand-100 px-5 py-3.5 font-bold text-brand-800 transition duration-150 ease-out hover:bg-brand-200 active:scale-95"
-        >
-          Start a new session
-        </Link>
+        <Notice className="mt-4" title={failure.title} hint={failure.hint}>
+          {failure.message}
+        </Notice>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {retryable && (
+            <Button
+              onClick={() => {
+                setState({ kind: "loading" });
+                void load();
+              }}
+            >
+              Try again
+            </Button>
+          )}
+          <Link
+            href="/"
+            className="inline-block rounded-control bg-brand-100 px-5 py-3.5 font-bold text-brand-800 transition duration-150 ease-out hover:bg-brand-200 active:scale-95"
+          >
+            Start a new session
+          </Link>
+        </div>
       </Card>
     );
   }
@@ -186,6 +203,8 @@ export function SessionView() {
           </span>
         )}
       </header>
+
+      <ConnectionNotice status={connection} onRefresh={load} />
 
       {session.viewer.is_host && <ShareLink code={session.join_code} />}
 
@@ -355,7 +374,7 @@ function ShareLink({ code }: { code: string }) {
 function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<void> }) {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -368,13 +387,15 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<vo
         body: JSON.stringify({ display_name: name }),
       });
       if (!res.ok) {
-        const err = (await res.json()) as ApiErrorResponse;
-        setError(err.issues?.[0]?.message ?? err.error);
+        const failure = failureFromResponse(res.status, (await res.json()) as ApiErrorResponse);
+        setError(failure);
+        // The session may have moved on while this page was open: show what is true now.
+        if (shouldReload(failure)) await onJoined();
         return;
       }
       await onJoined();
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setSubmitting(false);
     }
@@ -393,13 +414,10 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<vo
           placeholder="What should we call you?"
         />
         {error && (
-          <p
-            role="alert"
-            className="animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
-          >
-            {error}
-          </p>
-        )}
+        <Notice title={error.title} hint={error.hint}>
+          {error.message}
+        </Notice>
+      )}
         <Button type="submit" fullWidth loading={submitting} disabled={name.trim() === ""}>
           {submitting ? "Joining…" : "Join"}
         </Button>
@@ -426,5 +444,43 @@ function ShareIcon() {
       <path d="M8 7l4-4 4 4" />
       <path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2" />
     </svg>
+  );
+}
+
+/**
+ * Shows that live updates are running, or that they dropped and are coming back.
+ * Nothing shows when live updates are not configured. While reconnecting, the page
+ * still works: Refresh loads the latest state by hand.
+ */
+function ConnectionNotice({
+  status,
+  onRefresh,
+}: {
+  status: ConnectionStatus;
+  onRefresh: () => Promise<void>;
+}) {
+  if (status === "off") return null;
+  if (status === "live") {
+    return (
+      <p
+        role="status"
+        className="-mt-4 flex items-center gap-2 text-sm font-semibold text-success-700"
+      >
+        <span aria-hidden="true" className="size-2 rounded-full bg-success-700" />
+        Live updates on
+      </p>
+    );
+  }
+  return (
+    <Notice
+      tone="info"
+      title={status === "connecting" ? "Connecting…" : "Reconnecting…"}
+      hint="Live updates paused. This page still works; refresh to see the latest."
+      action={
+        <Button variant="secondary" className="px-4 py-2 text-sm" onClick={() => void onRefresh()}>
+          Refresh
+        </Button>
+      }
+    />
   );
 }

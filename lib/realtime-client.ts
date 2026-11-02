@@ -15,3 +15,10 @@ export function createRealtimeClient(): SupabaseClient | null {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+/** True when the public Supabase variables are set, so live updates can run at all. */
+export function isRealtimeConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}

@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Notice } from "@/components/ui/Notice";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { SuccessCheck } from "@/components/ui/SuccessCheck";
 import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse } from "@/lib/api-types";
+import { failureFromResponse, inputProblem, NETWORK_FAILURE, type Failure } from "@/lib/failure";
 
 const RADIUS_OPTIONS = [
   { value: "500", label: "0.5" },
@@ -60,11 +62,11 @@ export function CreateSessionForm() {
   // Raw coordinates are a fallback; they open by themselves if location fails.
   const [showManual, setShowManual] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) {
-      setError("Your browser does not support location. You can enter coordinates instead.");
+      setError(inputProblem("Location unavailable", "Your browser does not support location.", "You can enter coordinates instead."));
       setShowManual(true);
       return;
     }
@@ -77,7 +79,7 @@ export function CreateSessionForm() {
         setLocating(false);
       },
       () => {
-        setError("Could not get your location. You can enter coordinates instead.");
+        setError(inputProblem("Couldn’t get your location", "Location may be blocked for this site.", "Allow location in your browser settings, or enter coordinates instead."));
         setShowManual(true);
         setLocating(false);
       },
@@ -91,12 +93,12 @@ export function CreateSessionForm() {
     const latNum = Number(lat);
     const lngNum = Number(lng);
     if (lat === "" || lng === "" || Number.isNaN(latNum) || Number.isNaN(lngNum)) {
-      setError("Set a location first.");
+      setError(inputProblem("Set a location first", "Tap “Use my location” to continue."));
       return;
     }
     const meal = mealChoice === "now" ? new Date() : new Date(mealTime);
     if (Number.isNaN(meal.getTime())) {
-      setError("Pick a valid meal time.");
+      setError(inputProblem("Pick a meal time", "That time isn’t valid."));
       return;
     }
 
@@ -114,14 +116,13 @@ export function CreateSessionForm() {
       });
       const body: unknown = await res.json();
       if (!res.ok) {
-        const err = body as ApiErrorResponse;
-        setError(err.issues?.[0]?.message ?? err.error);
+        setError(failureFromResponse(res.status, body as ApiErrorResponse));
         return;
       }
       const { join_code } = body as { join_code: string };
       router.push(`/s/${join_code}`);
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setSubmitting(false);
     }
@@ -213,13 +214,10 @@ export function CreateSessionForm() {
         </div>
 
         {error && (
-          <p
-            role="alert"
-            className="animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
-          >
-            {error}
-          </p>
-        )}
+        <Notice title={error.title} hint={error.hint}>
+          {error.message}
+        </Notice>
+      )}
 
         <Button type="submit" fullWidth loading={submitting}>
           {submitting ? "Creating…" : "Create session"}

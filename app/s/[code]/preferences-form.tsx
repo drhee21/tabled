@@ -8,6 +8,8 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { SuccessCheck } from "@/components/ui/SuccessCheck";
 import { TextArea } from "@/components/ui/TextInput";
 import type { ApiErrorResponse, OwnPreferences } from "@/lib/api-types";
+import { failureFromResponse, NETWORK_FAILURE, shouldReload, type Failure } from "@/lib/failure";
+import { Notice } from "@/components/ui/Notice";
 import {
   CUISINE_VALUES,
   DIETARY_VALUES,
@@ -52,7 +54,7 @@ export function PreferencesForm({
   const [avoid, setAvoid] = useState(initial?.cuisines_avoid ?? []);
   const [note, setNote] = useState(initial?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [saved, setSaved] = useState(false);
 
   const resubmitting = initial !== null;
@@ -81,14 +83,15 @@ export function PreferencesForm({
         }),
       });
       if (!res.ok) {
-        const err = (await res.json()) as ApiErrorResponse;
-        setError(err.issues?.[0]?.message ?? err.error);
+        const failure = failureFromResponse(res.status, (await res.json()) as ApiErrorResponse);
+        setError(failure);
+        if (shouldReload(failure)) await onSaved();
         return;
       }
       setSaved(true);
       await onSaved();
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setSubmitting(false);
     }
@@ -180,13 +183,10 @@ export function PreferencesForm({
         />
 
         {error && (
-          <p
-            role="alert"
-            className="animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
-          >
-            {error}
-          </p>
-        )}
+        <Notice title={error.title} hint={error.hint}>
+          {error.message}
+        </Notice>
+      )}
 
         {saved && (
           <div

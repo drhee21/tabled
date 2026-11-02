@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Notice } from "@/components/ui/Notice";
 import type { ApiErrorResponse, Shortlist, VoteState } from "@/lib/api-types";
 import { cx } from "@/lib/cx";
+import { failureFromResponse, NETWORK_FAILURE, type Failure } from "@/lib/failure";
 import { MAPS_ATTRIBUTION, PlaceDetails } from "./place-details";
 
 /** Voting: pick a place, see live counts, and (host) close voting. */
@@ -26,7 +28,7 @@ export function VotePanel({
   onVotes: (state: VoteState) => void;
   onClosed: () => Promise<void>;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -43,14 +45,14 @@ export function VotePanel({
       });
       const body: unknown = await res.json();
       if (!res.ok) {
-        setError((body as ApiErrorResponse).error);
+        setError(failureFromResponse(res.status, body as ApiErrorResponse));
         // Voting may have closed or the shortlist changed: show what is true now.
         await onClosed();
         return;
       }
       onVotes(body as VoteState);
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setPending(null);
     }
@@ -63,10 +65,12 @@ export function VotePanel({
       const res = await fetch(`/api/sessions/${encodeURIComponent(code)}/close`, {
         method: "POST",
       });
-      if (!res.ok) setError(((await res.json()) as ApiErrorResponse).error);
+      if (!res.ok) {
+        setError(failureFromResponse(res.status, (await res.json()) as ApiErrorResponse));
+      }
       await onClosed();
     } catch {
-      setError("Network error. Please try again.");
+      setError(NETWORK_FAILURE);
     } finally {
       setClosing(false);
       setConfirming(false);
@@ -139,12 +143,9 @@ export function VotePanel({
       </ol>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 animate-rise rounded-control bg-danger-50 px-4 py-3 font-semibold text-danger-700"
-        >
-          {error}
-        </p>
+        <Notice className="mt-4" title={error.title} hint={error.hint}>
+          {error.message}
+        </Notice>
       )}
 
       {isHost && (
