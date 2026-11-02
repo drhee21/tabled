@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { z } from "zod";
+import type { RateLimitResult } from "./rate-limit";
 
 export function jsonError(
   status: number,
@@ -38,4 +39,11 @@ export function serverError(err: unknown): NextResponse {
   // Log the message only. Never log request bodies (they hold coordinates).
   console.error(err instanceof Error ? err.message : "Unknown server error");
   return jsonError(500, "Something went wrong. Please try again.");
+}
+
+/** 429 for a blocked rate-limit check, with the wait in a header and the body. */
+export function rateLimited(result: Extract<RateLimitResult, { ok: false }>): NextResponse {
+  const res = jsonError(429, result.message, { retry_after_s: result.retryAfterSeconds });
+  res.headers.set("Retry-After", String(result.retryAfterSeconds));
+  return res;
 }

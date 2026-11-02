@@ -1,7 +1,8 @@
 // An in-memory stand-in for the Supabase client, for tests only. It covers the
-// query methods this app uses (select, insert, update, upsert, delete, eq, in,
-// order, single, maybeSingle) and the Realtime broadcast calls, and it enforces
-// the two foreign keys that matter for voting. Nothing here touches a network.
+// query methods this app uses (select, insert, update, upsert, delete, eq, in, lte,
+// order, single, maybeSingle), the Realtime broadcast calls and the one SQL function
+// the app calls (rate_limit_hit). It enforces the foreign keys from the migrations,
+// including ON DELETE CASCADE. Nothing here touches a network.
 import { randomUUID } from "node:crypto";
 
 type Row = Record<string, unknown>;
@@ -19,12 +20,34 @@ export interface Broadcast {
 
 const FOREIGN_KEY_VIOLATION = "23503";
 
-/** Columns a child row must match in its parent table, as in the migrations. */
-const FOREIGN_KEYS: Record<string, { parent: string; columns: string[] }> = {
-  recommendations: { parent: "candidates", columns: ["session_id", "place_id"] },
+/**
+ * Foreign keys from the migrations, all ON DELETE CASCADE. Each pair is
+ * [column on the child, column on the parent]. A test checks this list against
+ * the SQL files so the two cannot drift apart.
+ */
+export const FOREIGN_KEYS: { child: string; parent: string; columns: [string, string][] }[] = [
+  { child: "participants", parent: "sessions", columns: [["session_id", "id"]] },
+  { child: "preferences", parent: "participants", columns: [["participant_id", "id"]] },
+  { child: "candidates", parent: "sessions", columns: [["session_id", "id"]] },
+  {
+    child: "recommendations",
+    parent: "candidates",
+    columns: [
+      ["session_id", "session_id"],
+      ["place_id", "place_id"],
+    ],
+  },
+  { child: "votes", parent: "participants", columns: [["participant_id", "id"]] },
   // Migration 0004: a vote must be for a shortlisted place.
-  votes: { parent: "recommendations", columns: ["session_id", "place_id"] },
-};
+  {
+    child: "votes",
+    parent: "recommendations",
+    columns: [
+      ["session_id", "session_id"],
+      ["place_id", "place_id"],
+    ],
+  },
+];
 
 let clock = Date.parse("2026-10-30T12:00:00Z");
 
@@ -50,15 +73,23 @@ export function createFakeDb() {
   const rows = (table: string): Row[] => (tables[table] ??= []);
 
   function hasParent(child: string, row: Row): boolean {
-    const fk = FOREIGN_KEYS[child];
-    if (!fk) return true;
-    return rows(fk.parent).some((p) => fk.columns.every((c) => p[c] === row[c]));
+    return FOREIGN_KEYS.filter((fk) => fk.child === child).every((fk) =>
+      rows(fk.parent).some((p) => fk.columns.every(([c, pc]) => p[pc] === row[c])),
+    );
   }
 
-  /** Delete children whose parent row is gone, like ON DELETE CASCADE. */
+  /** Delete children whose parent row is gone, like ON DELETE CASCADE, down the whole chain. */
   function cascade() {
-    for (const child of ["recommendations", "votes"]) {
-      tables[child] = rows(child).filter((r) => hasParent(child, r));
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const child of new Set(FOREIGN_KEYS.map((fk) => fk.child))) {
+        const kept = rows(child).filter((r) => hasParent(child, r));
+        if (kept.length !== rows(child).length) {
+          tables[child] = kept;
+          changed = true;
+        }
+      }
     }
   }
 
@@ -105,6 +136,10 @@ export function createFakeDb() {
     }
     in(column: string, values: unknown[]) {
       this.filters.push((r) => values.includes(r[column]));
+      return this;
+    }
+    lte(column: string, value: string) {
+      this.filters.push((r) => String(r[column]) <= value);
       return this;
     }
     order(column: string, options?: { ascending?: boolean }) {
@@ -201,6 +236,19 @@ export function createFakeDb() {
 
   const db = {
     from: (table: string) => new Query(table),
+    /** The only SQL function the app calls: count one hit in a rate-limit window. */
+    rpc: async (fn: string, args: { p_key: string; p_window_start: string }) => {
+      if (fn !== "rate_limit_hit") {
+        return { data: null, error: { code: "42883", message: `unknown function ${fn}` } };
+      }
+      const table = rows("rate_limits");
+      const row = table.find(
+        (r) => r.key === args.p_key && r.window_start === args.p_window_start,
+      );
+      if (row) (row.count as number) += 1;
+      else table.push({ key: args.p_key, window_start: args.p_window_start, count: 1 });
+      return { data: (row ?? table[table.length - 1]).count, error: null };
+    },
     channel: (topic: string) => ({
       httpSend: async (event: string, payload: Record<string, unknown>) => {
         broadcasts.push({ topic, event, payload });

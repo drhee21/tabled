@@ -6,11 +6,12 @@ import {
   replaceCandidates,
   toSummary,
 } from "@/lib/candidates";
-import { jsonError, serverError } from "@/lib/http";
+import { jsonError, rateLimited, serverError } from "@/lib/http";
 import { getLLMClient } from "@/lib/llm";
 import { rankCandidates } from "@/lib/llm/rank";
 import { getPlacesProvider, PlacesProviderError } from "@/lib/places";
 import { searchCandidates } from "@/lib/places/search";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { broadcastVotes } from "@/lib/realtime";
 import { getShortlist, replaceRecommendations } from "@/lib/recommendations";
 import { MAX_SEARCHES } from "@/lib/search-limits";
@@ -39,6 +40,12 @@ export async function POST(
     }
     if (session.search_count >= MAX_SEARCHES) {
       return jsonError(429, `This session has used all ${MAX_SEARCHES} searches`);
+    }
+
+    // Per-IP first, so one noisy client cannot use up the app-wide daily budget.
+    for (const rule of ["searches_per_ip", "searches_global"] as const) {
+      const limit = await checkRateLimit(rule, request.headers);
+      if (!limit.ok) return rateLimited(limit);
     }
 
     // Fail on a missing key before using up a search.

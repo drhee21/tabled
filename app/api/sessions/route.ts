@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { parseBody, serverError } from "@/lib/http";
+import { parseBody, rateLimited, serverError } from "@/lib/http";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createSessionSchema } from "@/lib/schemas";
 import { createSession } from "@/lib/sessions";
 import { hostCookieName, tokenCookieOptions } from "@/lib/tokens";
@@ -9,6 +10,9 @@ export async function POST(request: Request) {
   if ("response" in parsed) return parsed.response;
 
   try {
+    const limit = await checkRateLimit("sessions_per_ip", request.headers);
+    if (!limit.ok) return rateLimited(limit);
+
     const { session, hostToken } = await createSession(parsed.data);
     const res = NextResponse.json(
       { join_code: session.join_code, host_token: hostToken },

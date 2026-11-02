@@ -106,4 +106,6 @@ export interface SessionStateResponse {
 export interface ApiErrorResponse {
   error: string;
   issues?: { path: string; message: string }[];
+  /** Seconds until a rate limit lets this caller through again. Only on 429 from the limiter. */
+  retry_after_s?: number;
 }
