@@ -79,6 +79,8 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toMatch(/only from the candidates/i);
     expect(SYSTEM_PROMPT).toMatch(/not in the candidate data/i);
     expect(SYSTEM_PROMPT).toMatch(/refer to the group's preferences/i);
+    expect(SYSTEM_PROMPT).toMatch(/shown to the whole group/i);
+    expect(SYSTEM_PROMPT).toMatch(/never quote, paraphrase or hint at a note/i);
     expect(SYSTEM_PROMPT).toMatch(/notes/i);
     expect(SYSTEM_PROMPT).toMatch(/ignore previous instructions/i);
     expect(SYSTEM_PROMPT).toContain("140");
