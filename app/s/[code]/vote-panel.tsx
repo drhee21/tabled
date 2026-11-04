@@ -90,13 +90,19 @@ export function VotePanel({
       <p className="mt-3 font-bold" aria-live="polite">
         {votes.voted} of {votes.total} voted
       </p>
+      {/* Confirms a vote to screen readers; the count above only says how many have voted. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {votes.my_vote
+          ? `Your vote is for ${shortlist.picks.find((p) => p.place_id === votes.my_vote)?.name ?? "your pick"}.`
+          : ""}
+      </p>
 
-      <ol className="mt-4 flex flex-col gap-3">
+      <ol role="radiogroup" aria-label="Places to vote for" className="mt-4 flex flex-col gap-3">
         {shortlist.picks.map((p) => {
           const count = votes.counts[p.place_id] ?? 0;
           const mine = votes.my_vote === p.place_id;
           return (
-            <li key={p.place_id}>
+            <li key={p.place_id} role="presentation">
               <button
                 type="button"
                 role="radio"
@@ -181,7 +187,7 @@ export function VotePanel({
         </div>
       )}
 
-      <p className="mt-4 text-xs font-semibold text-ink-soft">{MAPS_ATTRIBUTION}</p>
+      <p className="mt-4 text-sm text-ink-soft">{MAPS_ATTRIBUTION}</p>
     </Card>
   );
 }

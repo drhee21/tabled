@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
+import { Tag } from "@/components/ui/Tag";
 import type {
   ApiErrorResponse,
   BudgetSummary,
@@ -14,6 +15,7 @@ import { failureFromResponse, NETWORK_FAILURE, type Failure } from "@/lib/failur
 import { distanceLabel, priceLabel } from "@/lib/format";
 import { optionLabel } from "@/lib/preference-options";
 import { MAX_SEARCHES } from "@/lib/search-limits";
+import { SearchProgress } from "./search-progress";
 
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
@@ -97,8 +99,17 @@ export function SearchPanel({
           {answered.length} of {participants.length} answered
         </p>
       )}
+      {waiting.length > 0 && !searching && (
+        <p className="mt-1 text-sm text-ink-soft">
+          Waiting on {joinNames(waiting.map((p) => p.display_name))}.
+        </p>
+      )}
 
-      {!confirming ? (
+      {searching ? (
+        <div className="mt-4">
+          <SearchProgress isHost />
+        </div>
+      ) : !confirming ? (
         <>
           <Button
             className="mt-4"
@@ -185,24 +196,15 @@ export function SearchPanel({
                 {(c.cuisine_tags.length > 0 || c.dietary_unknown) && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {c.cuisine_tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-brand-800"
-                      >
-                        {optionLabel(t)}
-                      </span>
+                      <Tag key={t}>{optionLabel(t)}</Tag>
                     ))}
-                    {c.dietary_unknown && (
-                      <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-ink-soft">
-                        Dietary info unknown
-                      </span>
-                    )}
+                    {c.dietary_unknown && <Tag tone="muted">Dietary info unknown</Tag>}
                   </div>
                 )}
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs font-semibold text-ink-soft">
+          <p className="mt-4 text-sm text-ink-soft">
             Place data from Google Maps. Dietary filtering is best-effort, so check with the
             restaurant.
           </p>

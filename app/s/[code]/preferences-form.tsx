@@ -101,7 +101,7 @@ export function PreferencesForm({
     <Card className="animate-rise">
       <form onSubmit={onSubmit} className="flex flex-col gap-8" onChange={edited}>
         <div>
-          <h2 className="text-2xl font-extrabold">
+          <h2 className="text-xl font-extrabold">
             {resubmitting ? "Update your answers" : "What are you into?"}
           </h2>
           <p className="mt-1 text-ink-soft">
@@ -183,10 +183,10 @@ export function PreferencesForm({
         />
 
         {error && (
-        <Notice title={error.title} hint={error.hint}>
-          {error.message}
-        </Notice>
-      )}
+          <Notice title={error.title} hint={error.hint}>
+            {error.message}
+          </Notice>
+        )}
 
         {saved && (
           <div
@@ -203,9 +203,12 @@ export function PreferencesForm({
           </div>
         )}
 
-        <Button type="submit" fullWidth loading={submitting}>
-          {submitting ? "Saving…" : resubmitting ? "Update answers" : "Submit"}
-        </Button>
+        {/* Stays at the bottom of the screen while the form scrolls, so Submit is always in reach. */}
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 rounded-b-card border-t border-line bg-white px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          <Button type="submit" fullWidth loading={submitting}>
+            {submitting ? "Saving…" : resubmitting ? "Update answers" : "Submit my answers"}
+          </Button>
+        </div>
       </form>
     </Card>
   );

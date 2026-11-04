@@ -1,17 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
+import { SessionSkeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse, SessionStateResponse, VoteCounts, VoteState } from "@/lib/api-types";
 import { cx } from "@/lib/cx";
 import { failureFromResponse, NETWORK_FAILURE, shouldReload, type Failure } from "@/lib/failure";
 import { PreferencesForm } from "./preferences-form";
+import { SearchProgress } from "./search-progress";
 import { SearchPanel } from "./search-panel";
 import { ResultScreen } from "./result-screen";
 import { combineStatus, useRealtimeChannel, type ConnectionStatus } from "./use-realtime-channel";
@@ -42,6 +43,13 @@ export function SessionView() {
     }, JUST_SUBMITTED_MS);
   }, []);
 
+  // The latest spoken update for screen readers, and who we already know about.
+  const [announcement, setAnnouncement] = useState({ text: "", n: 0 });
+  const knownPeople = useRef<Map<string, string> | null>(null);
+  const announce = useCallback((text: string) => {
+    setAnnouncement((a) => ({ text, n: a.n + 1 }));
+  }, []);
+
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(confirmTimer.current), []);
 
@@ -63,15 +71,26 @@ export function SessionView() {
         fail(failureFromResponse(res.status, body as ApiErrorResponse));
         return;
       }
-      setState({ kind: "ready", session: body as SessionStateResponse });
+      const next = body as SessionStateResponse;
+      // Anyone new since the last load is announced; the first load is not.
+      const previous = knownPeople.current;
+      knownPeople.current = new Map(next.participants.map((p) => [p.id, p.display_name]));
+      if (previous) {
+        const joinedNow = next.participants.filter(
+          (p) => !previous.has(p.id) && p.id !== next.viewer.participant_id,
+        );
+        if (joinedNow.length > 0) {
+          announce(`${joinedNow.map((p) => p.display_name).join(" and ")} joined`);
+        }
+      }
+      setState({ kind: "ready", session: next });
     } catch {
       fail(NETWORK_FAILURE);
     }
-  }, [code]);
+  }, [code, announce]);
 
   useEffect(() => {
     // Initial fetch on mount; setState happens after the await, not synchronously.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
@@ -85,6 +104,8 @@ export function SessionView() {
         const id = (payload as { participant_id?: string }).participant_id;
         if (!id) return;
         markJustSubmitted(id);
+        const who = knownPeople.current?.get(id);
+        if (who) announce(`${who} submitted`);
         setState((prev) => {
           if (prev.kind !== "ready") return prev;
           const known = prev.session.participants.some((p) => p.id === id);
@@ -149,14 +170,14 @@ export function SessionView() {
   }, []);
 
   if (state.kind === "loading") {
-    return <p className="animate-pulse text-ink-soft">Loading session…</p>;
+    return <SessionSkeleton />;
   }
   if (state.kind === "error") {
     const { failure } = state;
     const retryable = failure.kind === "network" || failure.kind === "server";
     return (
       <Card className="animate-rise">
-        <h1 className="text-2xl font-extrabold">Can’t open this session</h1>
+        <h1 className="text-xl font-extrabold">Can’t open this session</h1>
         <Notice className="mt-4" title={failure.title} hint={failure.hint}>
           {failure.message}
         </Notice>
@@ -171,12 +192,9 @@ export function SessionView() {
               Try again
             </Button>
           )}
-          <Link
-            href="/"
-            className="inline-block rounded-control bg-brand-100 px-5 py-3.5 font-bold text-brand-800 transition duration-150 ease-out hover:bg-brand-200 active:scale-95"
-          >
+          <ButtonLink href="/" variant="secondary">
             Start a new session
-          </Link>
+          </ButtonLink>
         </div>
       </Card>
     );
@@ -184,9 +202,9 @@ export function SessionView() {
 
   const { session } = state;
   const joined = session.viewer.participant_id !== null;
-  const canJoin =
-    session.status === "collecting" ||
-    (session.status === "voting" && session.viewer.is_host);
+  const isHost = session.viewer.is_host;
+  const collecting = session.status === "collecting";
+  const canJoin = collecting || (session.status === "voting" && isHost);
 
   return (
     <div className="flex flex-col gap-section">
@@ -197,7 +215,7 @@ export function SessionView() {
         <h1 className="mt-1 font-mono text-4xl font-extrabold tracking-widest text-brand-900">
           {session.join_code}
         </h1>
-        {session.viewer.is_host && (
+        {isHost && (
           <span className="mt-3 inline-block rounded-full bg-brand-100 px-3 py-1 text-sm font-bold text-brand-800">
             You’re the host
           </span>
@@ -206,28 +224,45 @@ export function SessionView() {
 
       <ConnectionNotice status={connection} onRefresh={load} />
 
-      {session.viewer.is_host && <ShareLink code={session.join_code} />}
+      {/* Spoken updates for screen readers: who joined or answered. Always mounted so it is announced. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement.text}
+        {announcement.n % 2 === 1 ? "\u200b" : ""}
+      </p>
+
+      {/* Inviting only matters while people can still join. */}
+      {isHost && collecting && <ShareLink code={session.join_code} />}
 
       {/* A host who never joined may still join while voting, so they can vote. */}
-      {!joined && canJoin && <JoinForm code={session.join_code} onJoined={load} />}
-      {!joined && !canJoin && (
-        <Card tone="tint">
-          <p className="font-semibold">This session is no longer accepting new people.</p>
-        </Card>
+      {!joined && canJoin && (
+        <JoinForm
+          code={session.join_code}
+          onJoined={load}
+          heading={
+            session.status === "voting"
+              ? "Join to vote"
+              : isHost
+                ? "Join the table"
+                : "You’re invited to eat together"
+          }
+          intro={
+            session.status === "voting"
+              ? "Add your name to cast your own vote."
+              : isHost
+                ? "Add yourself so your own tastes count too."
+                : "Add your name, then tell the group what you’re into. The host decides when to search."
+          }
+        />
       )}
 
-      {joined && session.status === "collecting" && (
+      {joined && collecting && (
         <PreferencesForm
           code={session.join_code}
           initial={session.viewer.preferences}
           onSaved={load}
         />
       )}
-      {joined && session.status === "searching" && (
-        <Card tone="tint">
-          <p className="font-semibold">Preferences are locked for this session.</p>
-        </Card>
-      )}
+      {session.status === "searching" && <SearchProgress isHost={isHost} />}
 
       {session.status === "voting" && session.shortlist && session.votes && (
         <VotePanel
@@ -235,7 +270,7 @@ export function SessionView() {
           shortlist={session.shortlist}
           votes={session.votes}
           canVote={joined}
-          isHost={session.viewer.is_host}
+          isHost={isHost}
           onVotes={setVotes}
           onClosed={load}
         />
@@ -248,7 +283,13 @@ export function SessionView() {
         />
       )}
 
-      {session.viewer.is_host && session.host && session.status === "collecting" && (
+      {!joined && !canJoin && !isHost && (
+        <Card tone="tint">
+          <p className="font-semibold">This session is no longer accepting new people.</p>
+        </Card>
+      )}
+
+      {isHost && session.host && collecting && (
         <SearchPanel
           code={session.join_code}
           searchesUsed={session.host.searches_used}
@@ -263,12 +304,16 @@ export function SessionView() {
           <h2 className="text-xl font-extrabold">
             Who’s here ({session.participants.length})
           </h2>
-          <Button variant="ghost" className="px-3 py-2 text-sm" onClick={() => void load()}>
+          <Button variant="ghost" size="sm" onClick={() => void load()}>
             Refresh
           </Button>
         </div>
         {session.participants.length === 0 ? (
-          <p className="mt-3 text-ink-soft">Nobody has joined yet.</p>
+          <p className="mt-3 text-ink-soft">
+            {isHost && collecting
+              ? "Nobody has joined yet. Send the invite link above and they’ll show up here."
+              : "Nobody has joined yet."}
+          </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-2.5">
             {session.participants.map((p) => (
@@ -291,7 +336,8 @@ export function SessionView() {
                     <span className="ml-2 text-sm font-semibold text-ink-soft">(you)</span>
                   )}
                 </span>
-                {p.submitted !== undefined && (
+                {/* Submitted / Waiting is about preferences, so it means nothing once voting starts. */}
+                {p.submitted !== undefined && (collecting || session.status === "searching") && (
                   <StatusBadge
                     submitted={p.submitted}
                     justChanged={justSubmitted.has(p.id)}
@@ -343,22 +389,21 @@ function ShareLink({ code }: { code: string }) {
 
   return (
     <Card tone="tint">
-      <h2 className="text-lg font-extrabold">Invite your group</h2>
-      <p className="mt-2 break-all rounded-control bg-white px-4 py-3 font-mono text-sm shadow-soft">
+      <h2 className="text-xl font-extrabold">Invite your group</h2>
+      <p className="mt-1 text-ink-soft">
+        Send this link. Anyone who opens it can add their name and join.
+      </p>
+      <p className="mt-3 break-all rounded-control bg-white px-4 py-3 text-sm font-semibold shadow-soft">
         {url}
       </p>
       <div className="mt-4 flex gap-2">
-        <Button
-          variant="secondary"
-          className="bg-white hover:bg-brand-100"
-          onClick={() => void copy()}
-        >
+        <Button variant="tinted" onClick={() => void copy()}>
           {copied ? "Copied!" : "Copy link"}
         </Button>
         {canShare && (
           <Button
-            variant="secondary"
-            className="bg-white px-3.5 hover:bg-brand-100"
+            variant="tinted"
+            className="px-3.5"
             aria-label="Share invite link"
             title="Share"
             onClick={() => void share()}
@@ -371,7 +416,17 @@ function ShareLink({ code }: { code: string }) {
   );
 }
 
-function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<void> }) {
+function JoinForm({
+  code,
+  onJoined,
+  heading,
+  intro,
+}: {
+  code: string;
+  onJoined: () => Promise<void>;
+  heading: string;
+  intro?: string;
+}) {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<Failure | null>(null);
@@ -404,7 +459,8 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<vo
   return (
     <Card className="animate-rise">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <h2 className="text-2xl font-extrabold">Join the table</h2>
+        <h2 className="text-xl font-extrabold">{heading}</h2>
+        {intro && <p className="-mt-2 text-ink-soft">{intro}</p>}
         <TextInput
           label="Your name"
           value={name}
@@ -414,10 +470,10 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => Promise<vo
           placeholder="What should we call you?"
         />
         {error && (
-        <Notice title={error.title} hint={error.hint}>
-          {error.message}
-        </Notice>
-      )}
+          <Notice title={error.title} hint={error.hint}>
+            {error.message}
+          </Notice>
+        )}
         <Button type="submit" fullWidth loading={submitting} disabled={name.trim() === ""}>
           {submitting ? "Joining…" : "Join"}
         </Button>
@@ -477,7 +533,7 @@ function ConnectionNotice({
       title={status === "connecting" ? "Connecting…" : "Reconnecting…"}
       hint="Live updates paused. This page still works; refresh to see the latest."
       action={
-        <Button variant="secondary" className="px-4 py-2 text-sm" onClick={() => void onRefresh()}>
+        <Button variant="secondary" size="sm" onClick={() => void onRefresh()}>
           Refresh
         </Button>
       }
