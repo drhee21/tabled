@@ -1,3 +1,4 @@
+import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Shortlist, VoteState } from "@/lib/api-types";
 import { mapsUrl } from "@/lib/maps";
@@ -39,14 +40,14 @@ export function ResultScreen({
             ? "Nobody voted, so the top pick wins."
             : `${votesLabel(winnerVotes)} of ${votes.voted} cast`}
         </p>
-        <a
+        <ButtonLink
           href={mapsUrl(winner.name, winner.place_id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex w-full select-none items-center justify-center rounded-control bg-brand-700 px-5 py-3.5 text-base font-bold text-white shadow-soft transition duration-150 ease-out hover:bg-brand-800 hover:shadow-lift active:scale-95"
+          external
+          fullWidth
+          className="mt-4"
         >
           Open in Google Maps
-        </a>
+        </ButtonLink>
       </Card>
 
       {others.length > 0 && (
@@ -60,7 +61,7 @@ export function ResultScreen({
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs font-semibold text-ink-soft">{MAPS_ATTRIBUTION}</p>
+          <p className="mt-4 text-sm text-ink-soft">{MAPS_ATTRIBUTION}</p>
         </Card>
       )}
     </div>

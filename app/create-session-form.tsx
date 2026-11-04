@@ -148,7 +148,7 @@ export function CreateSessionForm() {
             <div className="flex animate-rise items-center gap-3 rounded-control bg-success-50 px-4 py-3">
               <SuccessCheck size={32} />
               <p className="flex-1 font-extrabold text-success-700">Location set</p>
-              <Button variant="ghost" className="px-3 py-2 text-sm" onClick={useMyLocation}>
+              <Button variant="ghost" size="sm" onClick={useMyLocation}>
                 Update
               </Button>
             </div>
@@ -165,7 +165,8 @@ export function CreateSessionForm() {
           )}
           <Button
             variant="ghost"
-            className="self-start px-3 py-2 text-sm"
+            size="sm"
+            className="self-start"
             aria-expanded={showManual}
             onClick={() => setShowManual((s) => !s)}
           >

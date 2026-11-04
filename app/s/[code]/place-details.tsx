@@ -1,5 +1,6 @@
 import type { RecommendationSummary } from "@/lib/api-types";
 import { distanceLabel, priceLabel } from "@/lib/format";
+import { Tag } from "@/components/ui/Tag";
 import { optionLabel } from "@/lib/preference-options";
 
 /** What we know about a shortlisted place, shared by the vote card and the result. */
@@ -17,18 +18,9 @@ export function PlaceDetails({ place }: { place: RecommendationSummary }) {
       {(place.cuisine_tags.length > 0 || place.dietary_unknown) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {place.cuisine_tags.map((t) => (
-            <span
-              key={t}
-              className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-brand-800"
-            >
-              {optionLabel(t)}
-            </span>
+            <Tag key={t}>{optionLabel(t)}</Tag>
           ))}
-          {place.dietary_unknown && (
-            <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-ink-soft">
-              Dietary info unknown
-            </span>
-          )}
+          {place.dietary_unknown && <Tag tone="muted">Dietary info unknown</Tag>}
         </div>
       )}
     </>

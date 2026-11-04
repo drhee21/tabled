@@ -7,7 +7,7 @@ export function PageLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-[linear-gradient(to_bottom,var(--color-brand-50),white_18rem)]">
       <header className="mx-auto w-full max-w-md px-gutter pt-6">
-        <Link href="/" aria-label="Tabled home" className="inline-block rounded-control">
+        <Link href="/" aria-label="Tabled home" className="inline-flex min-h-11 items-center rounded-control">
           <Wordmark />
         </Link>
       </header>

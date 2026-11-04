@@ -46,6 +46,7 @@
   --animate-flash: flash 1400ms ease-out both;
   --animate-draw: draw 420ms ease-out 120ms both;
   --animate-reveal: reveal 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-sweep: sweep 1600ms ease-in-out infinite;
 
   @keyframes pop {
     0% {
@@ -79,17 +80,25 @@
     0% {
       transform: translateY(14px) scale(0.94);
       opacity: 0;
-      box-shadow: 0 0 0 0 rgb(106 50 209 / 0);
+      outline: 0 solid rgb(106 50 209 / 0);
     }
     55% {
       transform: translateY(0) scale(1.02);
       opacity: 1;
-      box-shadow: 0 0 0 10px rgb(106 50 209 / 0.14);
+      outline: 10px solid rgb(106 50 209 / 0.14);
     }
     100% {
       transform: translateY(0) scale(1);
       opacity: 1;
-      box-shadow: 0 0 0 0 rgb(106 50 209 / 0);
+      outline: 0 solid rgb(106 50 209 / 0);
+    }
+  }
+  @keyframes sweep {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
     }
   }
   @keyframes draw {
@@ -115,6 +124,11 @@ body {
 :focus-visible {
   outline: 3px solid var(--color-brand-700);
   outline-offset: 2px;
+}
+
+/* A focused field scrolls clear of the sticky submit bar. */
+html {
+  scroll-padding-bottom: 6rem;
 }
 
 /* Keep taps from selecting text or flashing the default highlight. */
