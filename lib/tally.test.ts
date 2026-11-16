@@ -86,4 +86,31 @@ describe("isShortlisted", () => {
     expect(isShortlisted(shortlist, "b")).toBe(true);
     expect(isShortlisted(shortlist, "not-on-the-list")).toBe(false);
   });
+
+  describe("tiebreak scores", () => {
+    it("lists the places tied for the lead", () => {
+      expect(tally(shortlist, [vote("p1", "c"), vote("p2", "b")]).tiedForLead).toEqual(["b", "c"]);
+      expect(tally(shortlist, []).tiedForLead).toEqual(["a", "b", "c"]);
+      expect(tally(shortlist, [vote("p1", "c")]).tiedForLead).toEqual([]);
+    });
+
+    it("lets a higher score beat a lower rank number among tied places", () => {
+      const result = tally(shortlist, [vote("p1", "a"), vote("p2", "b")], { a: 3.4, b: 3.7 });
+      expect(result.winner).toBe("b");
+      expect(result.standings.map((s) => s.place_id)).toEqual(["b", "a", "c"]);
+    });
+
+    it("never lets a score beat votes", () => {
+      const result = tally(shortlist, [vote("p1", "a"), vote("p2", "a"), vote("p3", "b")], {
+        a: 1,
+        b: 9,
+      });
+      expect(result.winner).toBe("a");
+    });
+
+    it("keeps the lower rank when scores are equal", () => {
+      const result = tally(shortlist, [vote("p1", "a"), vote("p2", "b")], { a: 3, b: 3 });
+      expect(result.winner).toBe("a");
+    });
+  });
 });

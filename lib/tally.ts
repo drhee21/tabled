@@ -21,8 +21,10 @@ export interface Tally {
   counts: Record<string, number>;
   /** People who have a counted vote. */
   voted: number;
-  /** Every shortlisted place, most votes first, ties by lower rank. The first is the winner. */
+  /** Every shortlisted place, most votes first, ties by tiebreak score and then lower rank. The first is the winner. */
   standings: TalliedPlace[];
+  /** place_ids tied for the most votes, or empty when one place leads. */
+  tiedForLead: string[];
   /** The winning place_id, or null if the shortlist is empty. */
   winner: string | null;
 }
@@ -35,10 +37,15 @@ export function isShortlisted(shortlist: readonly ShortlistRank[], placeId: stri
 /**
  * Count votes. One vote per person: if a participant appears more than once,
  * their last vote replaces the earlier ones. Votes for places that are not on
- * the shortlist are ignored. The winner has the most votes; a tie goes to the
- * lower rank number, so with no votes at all the rank 1 pick wins.
+ * the shortlist are ignored. The winner has the most votes. A tie goes to the
+ * higher tiebreak score (see tiebreak.ts) when scores are given, then to the
+ * lower rank number, so with no scores the rank 1 pick wins a tie.
  */
-export function tally(shortlist: readonly ShortlistRank[], votes: readonly Vote[]): Tally {
+export function tally(
+  shortlist: readonly ShortlistRank[],
+  votes: readonly Vote[],
+  tiebreakScores: Readonly<Record<string, number>> = {},
+): Tally {
   const onShortlist = new Set(shortlist.map((s) => s.place_id));
 
   const latest = new Map<string, string>();
@@ -53,12 +60,21 @@ export function tally(shortlist: readonly ShortlistRank[], votes: readonly Vote[
 
   const standings = shortlist
     .map((s) => ({ ...s, votes: counts[s.place_id] }))
-    .sort((a, b) => b.votes - a.votes || a.rank - b.rank);
+    .sort(
+      (a, b) =>
+        b.votes - a.votes ||
+        (tiebreakScores[b.place_id] ?? 0) - (tiebreakScores[a.place_id] ?? 0) ||
+        a.rank - b.rank,
+    );
+
+  const lead = standings[0]?.votes;
+  const leaders = standings.filter((s) => s.votes === lead).map((s) => s.place_id);
 
   return {
     counts,
     voted: latest.size,
     standings,
+    tiedForLead: leaders.length > 1 ? leaders : [],
     winner: standings[0]?.place_id ?? null,
   };
 }
