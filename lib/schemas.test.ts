@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { milesToMeters } from "./format";
 import { createSessionSchema, joinSessionSchema } from "./schemas";
 
 const inOneHour = () => new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -15,11 +16,18 @@ describe("createSessionSchema", () => {
     expect(createSessionSchema.safeParse(valid()).success).toBe(true);
   });
 
+  it("accepts every radius the form offers, up to 10 miles", () => {
+    for (const miles of [0.5, 1, 2, 3, 5, 10]) {
+      const radius_m = milesToMeters(miles);
+      expect(createSessionSchema.safeParse({ ...valid(), radius_m }).success).toBe(true);
+    }
+  });
+
   it.each([
     ["lat out of range", { lat: 91 }],
     ["lng out of range", { lng: -181 }],
     ["radius too small", { radius_m: 50 }],
-    ["radius too large", { radius_m: 50_000 }],
+    ["radius too large", { radius_m: 16_094 }],
     ["non-integer radius", { radius_m: 1500.5 }],
     ["meal time not a datetime", { meal_time: "tonight" }],
     [

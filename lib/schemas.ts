@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { milesToMeters } from "./format";
 import {
   CUISINE_VALUES,
   DIETARY_VALUES,
@@ -16,7 +17,8 @@ export const SESSION_STATUSES = [
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 export const RADIUS_MIN_M = 100;
-export const RADIUS_MAX_M = 10_000;
+/** 10 miles. The create form offers miles; the API and database keep meters. */
+export const RADIUS_MAX_M = milesToMeters(10);
 
 const HOUR_MS = 60 * 60 * 1000;
 

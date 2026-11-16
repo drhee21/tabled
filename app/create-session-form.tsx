@@ -10,14 +10,15 @@ import { SuccessCheck } from "@/components/ui/SuccessCheck";
 import { TextInput } from "@/components/ui/TextInput";
 import type { ApiErrorResponse } from "@/lib/api-types";
 import { failureFromResponse, inputProblem, NETWORK_FAILURE, type Failure } from "@/lib/failure";
+import { milesToMeters } from "@/lib/format";
 
-const RADIUS_OPTIONS = [
-  { value: "500", label: "0.5" },
-  { value: "1000", label: "1" },
-  { value: "1500", label: "1.5" },
-  { value: "3000", label: "3" },
-  { value: "5000", label: "5" },
-];
+// Miles on screen; the form sends whole meters.
+const RADIUS_MILES = [0.5, 1, 2, 3, 5, 10];
+const RADIUS_OPTIONS = RADIUS_MILES.map((miles) => ({
+  value: String(milesToMeters(miles)),
+  label: String(miles),
+}));
+const DEFAULT_RADIUS_M = milesToMeters(1);
 
 const MEAL_OPTIONS = [
   { value: "now", label: "Now" },
@@ -54,7 +55,7 @@ export function CreateSessionForm() {
   const router = useRouter();
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
-  const [radius, setRadius] = useState(1500);
+  const [radius, setRadius] = useState(DEFAULT_RADIUS_M);
   const [mealChoice, setMealChoice] = useState<MealChoice>("now");
   // Filled in when "Later" is picked, so the page can prerender without a clock read.
   const [mealTime, setMealTime] = useState("");
@@ -191,7 +192,7 @@ export function CreateSessionForm() {
         </fieldset>
 
         <SegmentedControl
-          label="How far will you go? (km)"
+          label="How far will you go? (miles)"
           options={RADIUS_OPTIONS}
           value={String(radius)}
           onChange={(v) => setRadius(Number(v))}
