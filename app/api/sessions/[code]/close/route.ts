@@ -28,7 +28,7 @@ export async function POST(
     if (!(await closeVoting(session.id))) return jsonError(409, "Voting is already closed");
     await broadcastClosed(session.host_token_hash);
 
-    const { tally } = await readVotes(session.id, null);
+    const { tally } = await readVotes(session.id, null, session);
     return NextResponse.json({ winner_place_id: tally.winner });
   } catch (err) {
     return serverError(err);

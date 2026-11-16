@@ -1,9 +1,12 @@
 // Vote storage. Server-only: it reads who voted for what, which no route may
 // return. Routes expose counts and the viewer's own vote only.
 import type { VoteCounts, VoteState } from "./api-types";
+import { listSubmittedAnswers } from "./candidates";
 import { getDb } from "./db";
-import { listParticipants } from "./sessions";
+import { getShortlist } from "./recommendations";
+import { listParticipants, type SessionRow } from "./sessions";
 import { tally, type ShortlistRank, type Tally, type Vote } from "./tally";
+import { tiebreakScore } from "./tiebreak";
 
 const FOREIGN_KEY_VIOLATION = "23503";
 
@@ -69,17 +72,40 @@ export async function closeVoting(sessionId: string): Promise<boolean> {
   return data !== null;
 }
 
-/** Totals for broadcasting and the viewer's own vote, from one read of the data. */
+/** Tiebreak scores for the shortlisted places, from their details and the group's budgets. */
+async function tiebreakScores(
+  session: Pick<SessionRow, "id" | "lat" | "lng" | "radius_m">,
+): Promise<Record<string, number>> {
+  const [shortlist, answers] = await Promise.all([
+    getShortlist(session),
+    listSubmittedAnswers(session.id),
+  ]);
+  const ctx = { radius_m: session.radius_m, budgets: answers };
+  return Object.fromEntries(
+    (shortlist?.picks ?? []).map((p) => [p.place_id, tiebreakScore(p, ctx)]),
+  );
+}
+
+/**
+ * Totals for broadcasting and the viewer's own vote, from one read of the data.
+ * Pass `tiebreakFor` when the winner matters (voting is closed): a tie for the
+ * lead is then broken by score instead of by rank alone. While voting is open
+ * only the counts are shown, so the extra reads are skipped.
+ */
 export async function readVotes(
   sessionId: string,
   viewerParticipantId: string | null,
+  tiebreakFor?: Pick<SessionRow, "id" | "lat" | "lng" | "radius_m">,
 ): Promise<{ state: VoteState; tally: Tally }> {
   const [shortlist, votes, participants] = await Promise.all([
     listShortlistRanks(sessionId),
     listVotes(sessionId),
     listParticipants(sessionId),
   ]);
-  const result = tally(shortlist, votes);
+  let result = tally(shortlist, votes);
+  if (tiebreakFor && result.tiedForLead.length > 1) {
+    result = tally(shortlist, votes, await tiebreakScores(tiebreakFor));
+  }
   const mine = viewerParticipantId
     ? votes.findLast((v) => v.participant_id === viewerParticipantId)
     : undefined;

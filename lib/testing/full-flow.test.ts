@@ -248,10 +248,40 @@ describe("full session, two participants", () => {
     expect(topics.size).toBeGreaterThanOrEqual(2);
   });
 
-  it("gives the win to the rank 1 pick when nobody votes", async () => {
+  it("gives the win to the best overall fit when nobody votes", async () => {
     const { code, host } = await startSession({ hostJoins: true });
     const closed = await call(close, host, code, "POST", "/close");
     expect(closed.json.winner_place_id).toBe("pizza-1");
+  });
+
+  it("breaks a tie by rating, distance and budget, not by the model's rank alone", async () => {
+    // The model ranks the 4.0 star place first, but the 4.5 star place is only a little farther.
+    const alwaysOpen = { periods: [{ open: { day: 0, hour: 0, minute: 0 }, close: null }] };
+    mocks.provider = mockProvider([
+      makePlace({ place_id: "pizza-1", name: "Pizza One", cuisine_tags: ["pizza"], meters: 1000, rating: 4.0, raw: alwaysOpen }),
+      makePlace({ place_id: "thai-1", name: "Thai One", cuisine_tags: ["thai"], meters: 1400, rating: 4.5, raw: alwaysOpen }),
+      makePlace({ place_id: "thai-2", name: "Thai Two", cuisine_tags: ["thai"], meters: 300, rating: 3.0, raw: alwaysOpen }),
+    ]);
+    const { code, host, ben } = await startSession({ hostJoins: true });
+
+    await call(vote, host, code, "POST", "/vote", { place_id: "pizza-1" });
+    await call(vote, ben, code, "POST", "/vote", { place_id: "thai-1" });
+
+    // While voting is open nothing is decided.
+    const during = await call(getSession, ben, code, "GET", "");
+    expect(during.json).not.toHaveProperty("winner_place_id");
+
+    const closed = await call(close, host, code, "POST", "/close");
+    expect(closed.json.winner_place_id).toBe("thai-1");
+    const result = await call(getSession, ben, code, "GET", "");
+    expect(result.json.winner_place_id).toBe("thai-1");
+
+    // The counts stay a true tie: the tiebreak never changes them.
+    expect((result.json.votes as { counts: Record<string, number> }).counts).toEqual({
+      "pizza-1": 1,
+      "thai-1": 1,
+      "thai-2": 0,
+    });
   });
 
   it("rejects a vote while the group is still collecting answers", async () => {

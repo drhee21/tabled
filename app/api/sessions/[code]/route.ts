@@ -56,7 +56,7 @@ export async function GET(
 
     // Vote totals and the viewer's own vote, never anyone else's. Joined people only.
     const voting = session.status === "voting" || session.status === "closed";
-    const votes = voting && (host || me) ? await readVotes(session.id, me?.id ?? null) : null;
+    const votes = voting && (host || me) ? await readVotes(session.id, me?.id ?? null, session.status === "closed" ? session : undefined) : null;
 
     // Coordinates are deliberately left out of the response.
     return NextResponse.json({

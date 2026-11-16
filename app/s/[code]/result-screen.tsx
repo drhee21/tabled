@@ -2,6 +2,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Shortlist, VoteState } from "@/lib/api-types";
 import { mapsUrl } from "@/lib/maps";
+import { describeTiebreak } from "@/lib/tiebreak";
 import { MAPS_ATTRIBUTION, PlaceDetails } from "./place-details";
 
 function votesLabel(n: number): string {
@@ -25,6 +26,7 @@ export function ResultScreen({
     .filter((p) => p.place_id !== winner.place_id)
     .sort((a, b) => (votes.counts[b.place_id] ?? 0) - (votes.counts[a.place_id] ?? 0) || a.rank - b.rank);
   const winnerVotes = votes.counts[winner.place_id] ?? 0;
+  const tiedWith = others.filter((p) => (votes.counts[p.place_id] ?? 0) === winnerVotes);
 
   return (
     <div className="flex flex-col gap-section">
@@ -37,9 +39,12 @@ export function ResultScreen({
         </div>
         <p className="mt-3 font-bold">
           {votes.voted === 0
-            ? "Nobody voted, so the top pick wins."
+            ? "Nobody voted, so the best overall fit wins."
             : `${votesLabel(winnerVotes)} of ${votes.voted} cast`}
         </p>
+        {votes.voted > 0 && tiedWith.length > 0 && (
+          <p className="mt-1 text-ink-soft">{describeTiebreak(winner, tiedWith, winnerVotes)}</p>
+        )}
         <ButtonLink
           href={mapsUrl(winner.name, winner.place_id)}
           external
